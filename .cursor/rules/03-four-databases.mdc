@@ -1,0 +1,31 @@
+---
+description: Four Core Medical Database Search Conventions & Standards
+globs: **/*
+---
+
+# Four Core Medical Database Search Specifications
+
+When constructing or reproducing search strategies, you must strictly adhere to the native syntax of each database:
+
+## 1. PubMed / MEDLINE
+- MeSH indexing: `term[MeSH Terms]` or `term[Mesh:NoExp]`
+- Free-text: `term[Title/Abstract]` or `term[tiab]`
+- Study design filter: Cochrane Highly Sensitive Search Strategy for identifying randomized trials in MEDLINE.
+- Execution: Prefer NCBI E-utilities (`esearch`, `esummary`, `efetch`).
+
+## 2. Embase
+- Emtree indexing: `'term'/exp` (explosion) or `'term'/de` (non-exploded)
+- Free-text: `term:ti,ab,kw`
+- Limits: `[humans]/lim`, `[english]/lim`
+- Execution: Web REST pagination sequence behind Search History (`pageSize=200`).
+
+## 3. Cochrane Library
+- Scope: Cochrane Database of Systematic Reviews & CENTRAL (Cochrane Central Register of Controlled Trials).
+- Syntax: `[All Text]`, `[Title, Abstract, Keyword]`.
+- Execution: Real advanced search form and results portlet (`validate-advanced-search` + `render_portlet`).
+
+## 4. Web of Science Core Collection
+- Syntax: `TS=` (Topic), `TI=` (Title), `SO=` (Publication Source), `PY=` (Year).
+- Scope: SCI-EXPANDED, SSCI, A&HCI, ESCI.
+- Filters: `DT=(Article OR Review) NOT DT=(Meeting Abstract OR Proceedings Paper)`.
+- Execution: Clarivate Starter API (`/v1/documents`).

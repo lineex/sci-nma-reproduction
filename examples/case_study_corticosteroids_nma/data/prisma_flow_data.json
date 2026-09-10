@@ -1,0 +1,33 @@
+{
+  "databases": {
+    "PubMed": 312,
+    "Embase": 485,
+    "Cochrane_CENTRAL": 198,
+    "Web_of_Science": 155
+  },
+  "registries_or_citations": 12,
+  "total_identified": 1162,
+  "duplicates_removed": 412,
+  "records_screened": 750,
+  "screening_excluded": 638,
+  "screening_exclusion_reasons": {
+    "Animal or in vitro studies": 145,
+    "Non-septic ICU populations (e.g., pancreatitis, burns)": 218,
+    "Reviews, editorials, and commentary": 162,
+    "Case reports and case series": 113
+  },
+  "reports_sought": 112,
+  "reports_not_retrieved": 4,
+  "reports_assessed": 108,
+  "fulltext_excluded": 79,
+  "fulltext_exclusion_reasons": {
+    "Non-randomized or observational design": 28,
+    "Pediatric study population (< 18 years)": 18,
+    "Intervention dose/regimen outside criteria": 15,
+    "Companion report or secondary analysis": 12,
+    "No extractable mortality outcome": 6
+  },
+  "studies_included": 29,
+  "reports_included": 34,
+  "flow_loss": 0
+}

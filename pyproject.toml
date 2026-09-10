@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sci-nma-agent"
+version = "1.0.0"
+description = "Top-Tier Medical Review & NMA Autonomous Agent: Publication-grade systematic reviews, meta-analyses, and narrative review reproduction framework."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "lineex", email = "lineex@users.noreply.github.com" }
+]
+keywords = [
+    "systematic-review",
+    "meta-analysis",
+    "network-meta-analysis",
+    "medical-ai",
+    "prisma-2020",
+    "pubmed",
+    "embase",
+    "cochrane",
+    "web-of-science",
+    "autonomous-agent",
+    "evidence-synthesis"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Healthcare Industry",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent"
+]
+dependencies = [
+    "numpy>=1.20.0",
+    "scipy>=1.7.0",
+    "matplotlib>=3.5.0",
+    "python-docx>=0.8.11",
+    "openpyxl>=3.0.0",
+    "python-pptx>=0.6.21",
+    "requests>=2.28.0",
+    "pydantic>=2.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "flake8>=6.0.0",
+    "black>=23.0.0"
+]
+mcp = [
+    "mcp>=0.1.0"
+]
+
+[project.scripts]
+sci-nma-agent = "sci_nma_agent.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/lineex/sci-nma-reproduction"
+Repository = "https://github.com/lineex/sci-nma-reproduction.git"
+Issues = "https://github.com/lineex/sci-nma-reproduction/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sci_nma_agent*"]

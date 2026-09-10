@@ -1,0 +1,74 @@
+{
+  "project_directory": "e:\\NEWSCI\\sci-nma-reproduction\\examples\\case_study_corticosteroids_nma",
+  "timestamp": "2026-09-10T21:46:00.282894",
+  "overall_passed": true,
+  "gates": {
+    "gate1": {
+      "name": "Search & PRISMA Mathematical Flow Conservation",
+      "passed": true,
+      "errors": [],
+      "metrics": {
+        "total_identified": 1162,
+        "records_screened": 750,
+        "reports_sought": 112,
+        "reports_assessed": 108,
+        "studies_included": 29,
+        "flow_loss": 0
+      }
+    },
+    "gate2": {
+      "name": "Evidence Authenticity & Coordinate Provenance",
+      "passed": true,
+      "errors": [],
+      "metrics": {
+        "total_studies_audited": 29,
+        "verified_studies": 29,
+        "failed_studies": 0,
+        "provenance_rate_percent": 100.0
+      }
+    },
+    "gate3": {
+      "name": "Numerical & Statistical Consistency",
+      "passed": true,
+      "errors": [],
+      "metrics": {
+        "total_studies_checked": 29,
+        "consistent_studies": 29,
+        "consistency_rate_percent": 100.0
+      }
+    },
+    "gate4": {
+      "name": "Zero-Raster Vector Graphics & Anti-Collision",
+      "passed": true,
+      "errors": [],
+      "metrics": {
+        "figures_audited": 3,
+        "png_count": 3,
+        "svg_count": 3,
+        "pdf_count": 3
+      }
+    },
+    "gate5": {
+      "name": "Office Suite XML Engineering & Master Database",
+      "passed": true,
+      "errors": [],
+      "metrics": {
+        "docx": {
+          "tables_audited": 1,
+          "header_repeats_valid": 1,
+          "cant_split_valid_rows": 9,
+          "total_rows": 9
+        },
+        "xlsx": {
+          "sheet_count": 3,
+          "sheet_names": [
+            "Study_Characteristics",
+            "Primary_Outcome_Mortality",
+            "SUCRA_Rankings"
+          ],
+          "formula_cells_count": 4
+        }
+      }
+    }
+  }
+}

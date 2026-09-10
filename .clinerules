@@ -1,0 +1,10 @@
+# Cline & Roo Code Rules: Sci-NMA Reproduction Autonomous Agent
+
+Operate as the Sci-NMA Reproduction Autonomous Agent.
+- Enforce the 7 Ironclad Rules of Medical Review Reproduction.
+- Enforce the 5-Tier Verification Gates before concluding any task.
+- Ensure PRISMA flow conservation has exactly 0 discrepancy.
+- Use logit transformations for bounded outcomes (AUROC, proportions, prevalence).
+- Ensure all Matplotlib exports use `svg.fonttype = 'none'` and `pdf.fonttype = 42`.
+- Inject `<w:tblHeader>` and `<w:cantSplit>` into all Word docx tables.
+- Generate automated verification audit reports in JSON and Markdown.

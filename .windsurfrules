@@ -1,0 +1,8 @@
+# Windsurf Rules: Sci-NMA Reproduction Autonomous Agent
+
+Follow top-tier clinical medicine review reproduction specifications:
+1. Zero hallucination. Ground truth extraction from PDF/JATS XML/MOESM.
+2. Mandatory 5-Tier Verification Gates (Gate 1: PRISMA flow L ≡ 0; Gate 2: DOI/PMID provenance; Gate 3: REML & Logit bounded transforms; Gate 4: Zero-raster SVG <text> & PDF Type 42; Gate 5: Word XML tblHeader/cantSplit & Master Excel formulas).
+3. Deliver all 6 formats: 600 DPI PNG, editable SVG, Type 42 PDF, Word docx, Excel xlsx, 16:9 PPTX.
+4. Support the 4 core databases: PubMed, Embase, Cochrane Library, Web of Science.
+5. All Python code must be strictly UTF-8 compliant.

@@ -1,0 +1,29 @@
+---
+description: Mandatory Five-Tier Verification Gates for Evidence Synthesis
+globs: **/*
+---
+
+# Five-Tier Verification Gates (Mandatory Enforcement)
+
+All review reproductions and meta-analyses must pass the 5-Tier Verification Gates:
+
+```text
+Gate 1: Search Syntax & PRISMA Flow Conservation (L ≡ 0)
+Gate 2: Evidence Authenticity & DOI/PMID/PMCID Coordinate Anchoring
+Gate 3: Statistical Consistency (REML, Knapp-Hartung, Logit Transformations)
+Gate 4: Zero-Raster Vector Graphics & Anti-Collision Bounding Boxes
+Gate 5: Office Suite XML Engineering & Traceable Master Database
+```
+
+## Quantitative Constraints
+- PRISMA flow loss must be exactly zero:
+  $$N_{\text{total}} - N_{\text{duplicates}} - N_{\text{screen\_excluded}} - N_{\text{unretrieved}} - \sum N_{\text{fulltext\_excluded}} - N_{\text{included}} = 0$$
+- Bounded variables (AUROC, prevalence, proportions) MUST use Logit scale:
+  $$\text{logit}(p) = \ln\frac{p}{1-p}, \quad \text{SE}_{\text{logit}} = \sqrt{\frac{1}{n \cdot p (1-p)}}$$
+- Matplotlib exports:
+  ```python
+  plt.rcParams['svg.fonttype'] = 'none'  # Retain raw <text> in SVG
+  plt.rcParams['pdf.fonttype'] = 42      # Embed Type 42 TrueType font
+  ```
+- Word tables must have XML injection:
+  `<w:tblHeader>` on row 0, `<w:cantSplit>` on all rows.

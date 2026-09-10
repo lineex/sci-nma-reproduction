@@ -1,0 +1,47 @@
+{
+  "title": "Corticosteroid Regimens for Sepsis and Septic Shock: A Systematic Review and Network Meta-Analysis of Randomized Controlled Trials",
+  "topic": "Corticosteroid Regimens in Sepsis & Septic Shock",
+  "prospero_registration": "CRD42024510506",
+  "population": [
+    "septic shock",
+    "severe sepsis",
+    "sepsis-induced hypotension"
+  ],
+  "intervention": [
+    "corticosteroids",
+    "hydrocortisone",
+    "fludrocortisone",
+    "methylprednisolone",
+    "dexamethasone"
+  ],
+  "comparison": [
+    "placebo",
+    "usual care",
+    "standard therapy"
+  ],
+  "primary_outcome": "All-cause mortality at 28 to 30 days",
+  "secondary_outcomes": [
+    "Shock reversal time",
+    "ICU length of stay",
+    "Ventilator-free days",
+    "Superinfection",
+    "Hyperglycemia"
+  ],
+  "year_range": [1990, 2026],
+  "mesh_mapping": {
+    "septic shock": "Shock, Septic",
+    "severe sepsis": "Sepsis",
+    "corticosteroids": "Adrenal Cortex Hormones",
+    "hydrocortisone": "Hydrocortisone",
+    "fludrocortisone": "Fludrocortisone",
+    "methylprednisolone": "Methylprednisolone",
+    "dexamethasone": "Dexamethasone"
+  },
+  "emtree_mapping": {
+    "septic shock": "septic shock",
+    "severe sepsis": "severe sepsis",
+    "corticosteroids": "corticosteroid",
+    "hydrocortisone": "hydrocortisone",
+    "fludrocortisone": "fludrocortisone"
+  }
+}

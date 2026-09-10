@@ -1,0 +1,22 @@
+---
+description: Zero-Discrepancy and Strict Superset Protocol for Medical Reviews
+globs: **/*
+---
+
+# Zero-Discrepancy Dual Protocol
+
+1. **Anti-Generic-Template**:
+   - Never assume standard tables (Table 1 != generic demographics by default).
+   - Reverse engineer directly from published PDF, JATS XML, and MOESM supplementary material.
+
+2. **Mandatory Complete Redraw**:
+   - Zero low-res raster modification or whiteout box patching.
+   - All anatomical elements, cellular microenvironments, and clinical equipment must be rendered from pure code or clean, isolated alpha-masked artwork with anti-aliasing.
+
+3. **Strict Superset & No Information Loss**:
+   - The reproduction must contain 100% of the original content plus top-tier enhancements:
+     - GRADE summary of findings table
+     - Pathophysiological graphical abstract
+     - Multi-sheet Master Research Database
+     - 16:9 presentation slide deck
+     - 5-Tier verification audit report

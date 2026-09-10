@@ -1,0 +1,29 @@
+---
+description: Publication-Grade Medical Vector Figures and Office Documents
+globs: **/*
+---
+
+# Publication-Grade Scientific Figures & Office Assets
+
+## Figure Standards
+1. **PRISMA 2020 Flow Diagram**:
+   - Distinct vertical phases: `Identification`, `Screening`, `Included`.
+   - Explicit database tallies and exact breakdown of exclusion reasons.
+   - Flow loss must be mathematically zero ($L \equiv 0$).
+2. **Subgroup High-Density Forest Plot**:
+   - Point estimates with area proportional to statistical weight ($1/\text{SE}^2$).
+   - Heterogeneity parameters displayed: $I^2, \tau^2, Q, P$.
+   - Vertical dashed reference line through overall pooled effect estimate.
+   - Subgroup Wald test $P$-value printed below overall diamond.
+3. **Network Meta-Analysis Geometry**:
+   - Node diameter strictly proportional to total randomized sample size.
+   - Edge thickness strictly proportional to number of direct comparative trials.
+   - Never fabricate direct comparison edges (preserve Star/Tree topology if unclosed).
+
+## Multi-Format Requirements
+- PNG: $\ge 600\text{ DPI}$, Canvas $\ge 3800\text{ px}$.
+- SVG: Pure vector, raw `<text>` tags (never outline fonts into paths).
+- PDF: Vector Type 42 TrueType embedded fonts.
+- Word `.docx`: `<w:tblHeader>` and `<w:cantSplit>` injected.
+- Master Excel: Formula-backed cells, 8-10 sheets, frozen headers.
+- PPTX: 16:9 widescreen academic slide deck.

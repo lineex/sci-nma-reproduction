@@ -1,0 +1,1 @@
+(((TS=("septic shock") OR TS=("severe sepsis") OR TS=("sepsis-induced hypotension")) AND (TS=("corticosteroids") OR TS=("hydrocortisone") OR TS=("fludrocortisone") OR TS=("methylprednisolone") OR TS=("dexamethasone")) AND (TS=("placebo") OR TS=("usual care") OR TS=("standard therapy"))) AND DT=(Article OR Review) NOT DT=(Meeting Abstract OR Proceedings Paper)) AND PY=(1990-2026)
