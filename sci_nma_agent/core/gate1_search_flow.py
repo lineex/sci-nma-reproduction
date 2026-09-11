@@ -143,7 +143,7 @@ class Gate1SearchFlow:
             # Check for invalid tags
             tags = re.findall(r"\[([a-zA-Z\s/-]+)\]", query)
             valid_tags = {
-                "mesh", "mesh terms", "mesh:noexp", "tiab", "title/abstract",
+                "mesh", "mesh terms", "mesh:noexp", "mh", "tiab", "title/abstract",
                 "title", "ti", "abstract", "ab", "author", "au", "journal", "ta",
                 "publication type", "pt", "date - publication", "dp", "language", "la"
             }

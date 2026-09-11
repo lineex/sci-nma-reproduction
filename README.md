@@ -104,9 +104,49 @@ sci-nma-agent audit examples/case_study_corticosteroids_nma
 sci-nma-agent search --pico examples/case_study_corticosteroids_nma/config_pico.json
 ```
 
+#### Execute Individual SOP Stage with Strict Acceptance Gate
+```bash
+# Execute Stage 1 (Search Strategy & Syntax Verification)
+sci-nma-agent run-step --stage 1 --project examples/case_study_corticosteroids_nma
+
+# Execute Stage 2 (PRISMA 2020 Flow Math Conservation Gate 1)
+sci-nma-agent run-step --stage 2 --project examples/case_study_corticosteroids_nma
+
+# Execute Stage 3 (Data Extraction, Gate 2 Provenance & Gate 3 Statistics)
+sci-nma-agent run-step --stage 3 --project examples/case_study_corticosteroids_nma
+```
+
 #### Execute Full End-to-End SOP Pipeline
 ```bash
 sci-nma-agent run-all --project examples/case_study_corticosteroids_nma
+```
+
+---
+
+### Step-by-Step SOP Workflow with Gated Acceptance
+
+The framework strictly enforces the **Anti-Shortcut Protocol**: Every single phase is executed sequentially and must pass an explicit Acceptance Checkpoint before the next phase is allowed to run. If any check fails, execution immediately halts with a diagnostic traceback:
+
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│ [Stage 1] PICO & Multi-Database Search Formulation                     │
+│ └── Checkpoint 1: Syntax balance, uppercase booleans, MeSH/Emtree tags │
+├────────────────────────────────────────────────────────────────────────┤
+│ [Stage 2] Ground-Truth Catalog & PRISMA Flow Ledger                    │
+│ └── Checkpoint 2 (Gate 1): Mathematical flow conservation (L ≡ 0)      │
+├────────────────────────────────────────────────────────────────────────┤
+│ [Stage 3] Data Extraction & Statistical Modeling                       │
+│ └── Checkpoint 3 (Gate 2 & 3): 100% DOI provenance & logit consistency │
+├────────────────────────────────────────────────────────────────────────┤
+│ [Stage 4] Multi-Format Vector Figure Rendering                         │
+│ └── Checkpoint 4 (Gate 4): 600 DPI, live <text> nodes, PDF Type 42     │
+├────────────────────────────────────────────────────────────────────────┤
+│ [Stage 5] Office Suites Industrial Engineering                         │
+│ └── Checkpoint 5 (Gate 5): Word XML tblHeader/cantSplit, Excel formulas│
+├────────────────────────────────────────────────────────────────────────┤
+│ [Stage 6] 5-Tier Verification Audit & AI Peer Review                   │
+│ └── Checkpoint 6: Full pass certificate & Lancet referee evaluation    │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -124,6 +164,31 @@ sci-nma-agent run-all --project examples/case_study_corticosteroids_nma
 - **全要素从零纯代码渲染**：严禁在低清作者位图上涂抹补字，流程图、森林图与网络拓扑图全由纯代码生成，保留原生 `<text>` 节点；
 - **Office 工业级排版工程**：自动化为 Word 表格底层注入 `<w:tblHeader/>`（跨页表头自动重复）与 `<w:cantSplit/>`（行防跨页撕裂），Excel 注入动态公式；
 - **五级强制门禁（5-Tier Verification Gates）**：Gate 1 检索与流平衡 -> Gate 2 DOI/PMID真实溯源 -> Gate 3 统计精算 -> Gate 4 纯矢量防碰撞 -> Gate 5 交付审计，验证不通过决不进入下一步。
+
+---
+
+### 全流程分步推进与强制逐级前置验收机制（Anti-Shortcut Protocol）
+
+智能体**严格按照六大标准作业阶段（Stage 1 ~ Stage 6）一步步执行**，并在**每一步结束时触发强制验收检查点（Acceptance Checkpoint）**。只有当前阶段通过自动化质检（Status: PASSED），系统才允许进入下一阶段；若发现任何偏差或不自洽，立即**熔断中断（Raise StepAcceptanceError）**并输出诊断回溯：
+
+1. **第一步（Stage 1 检索式制定）**：
+   - **产出**：四大数据库（PubMed、Embase、Cochrane、WoS）+ Scopus 原生布尔检索式。
+   - **验收检查点 (Checkpoint 1)**：括号平衡性校验、布尔逻辑大写校验、MeSH/Emtree 字段合法性校验。
+2. **第二步（Stage 2 PRISMA 2020 流向对账）**：
+   - **产出**：结构化筛选流向数据（检出、去重、初筛、索取、评估、纳入）。
+   - **验收检查点 (Checkpoint 2 / Gate 1)**：严格核验 PRISMA 数学闭环，保证流向损耗绝对归零（$L \equiv 0$），初筛与全文排除细项加和 100% 守恒。
+3. **第三步（Stage 3 数据抽取与统计精算）**：
+   - **产出**：基线数据、2x2 四格表、成对 Meta 分析、网状 Meta 分析（NMA）及 SUCRA 概率矩阵。
+   - **验收检查点 (Checkpoint 3 / Gate 2 & 3)**：Gate 2 真实性核验（100% 检验 DOI 结构、PMID 及坐标锚定，零 mock 伪造）；Gate 3 统计自洽性核验（样本量守恒、95% CI 正确包裹、AUROC/患病率强制 Logit 正态尺度转换）。
+4. **第四步（Stage 4 纯矢量图件代码渲染）**：
+   - **产出**：PRISMA 2020 流程图、亚组高密度森林图、网状拓扑图。
+   - **验收检查点 (Checkpoint 4 / Gate 4)**：自动化扫描 SVG 源码，强制核验原生可编辑 `<text>` 节点存在性，核查 PDF Type 42 字体嵌入，严禁任何内嵌 base64 位图，确保图元文字防碰撞。
+5. **第五步（Stage 5 工业级 Office 办公套件生成）**：
+   - **产出**：投稿级 Word 手稿、Master Excel 数据库（多 Sheet）、16:9 宽屏演示文稿（PPTX）。
+   - **验收检查点 (Checkpoint 5 / Gate 5)**：自动化扫描 Word 底层 XML，强制验收 `<w:tblHeader/>`（表头跨页重复）与 `<w:cantSplit/>`（行防截断撕裂）；扫描 Excel 验证动态公式（`=SUM` 等）与窗格冻结。
+6. **第六步（Stage 6 全局五级审计与同行评审终审）**：
+   - **产出**：机器可读 `verification_audit_report.json`、高管级 `verification_audit_report.md` 以及 AI 模拟 Lancet 审稿人的评审意见书。
+   - **验收检查点 (Checkpoint 6)**：全项目五级门禁全绿（100% Verified）方可签署交付！
 
 ---
 

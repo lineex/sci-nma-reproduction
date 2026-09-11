@@ -38,6 +38,14 @@ The agent enforces a **Zero-Discrepancy Protocol**, **Mandatory 5-Tier Verificat
   ```bash
   sci-nma-agent review --project examples/case_study_corticosteroids_nma
   ```
+- Execute individual SOP stage with strict acceptance gate:
+  ```bash
+  sci-nma-agent run-step --stage 1 --project examples/case_study_corticosteroids_nma
+  ```
+- Execute full 6-stage SOP pipeline with step-by-step gated acceptance:
+  ```bash
+  sci-nma-agent run-all --project examples/case_study_corticosteroids_nma
+  ```
 - Launch MCP Server (Model Context Protocol):
   ```bash
   python -m sci_nma_agent.mcp_server

@@ -1,7 +1,7 @@
 # 5-Tier Verification Audit Report
 
-**Project Directory**: `e:\NEWSCI\sci-nma-reproduction\examples\case_study_corticosteroids_nma`  
-**Audit Timestamp**: `2026-09-10T21:46:00.282894`  
+**Project Directory**: `examples\case_study_corticosteroids_nma`  
+**Audit Timestamp**: `2026-09-11T12:15:14.294727`  
 **Overall Compliance Status**: **✅ PASSED (100% Verified)**
 
 ---

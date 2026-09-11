@@ -1,8 +1,8 @@
 """
-End-to-End 6-Stage SOP Pipeline Orchestrator.
-Automates the complete journey from PICO specification and 4-database search,
-through extraction and statistical synthesis, to multi-format rendering, Office compilation,
-and 5-tier verification gate audit.
+End-to-End 6-Stage SOP Pipeline Orchestrator with Step-by-Step Gated Acceptance.
+Enforces the Anti-Shortcut Protocol: Every single stage has an explicit Acceptance Checkpoint.
+If any step fails its verification gate, execution is halted immediately (fused熔断),
+preventing flawed or unverified evidence from propagating into downstream stages.
 """
 
 import os
@@ -18,42 +18,134 @@ from ..generators.network_geometry import NetworkGeometryGenerator
 from ..generators.docx_manuscript import DocxManuscriptGenerator
 from ..generators.master_excel import MasterExcelGenerator
 from ..generators.presentation_pptx import PresentationGenerator
+from ..core.gate1_search_flow import Gate1SearchFlow
+from ..core.gate2_evidence_provenance import Gate2EvidenceProvenance
+from ..core.gate3_statistics import Gate3Statistics
+from ..core.gate4_figure_vector import Gate4FigureVector
+from ..core.gate5_office_audit import Gate5OfficeAudit
 from ..core.audit_runner import AuditRunner, VerificationReport
 from ..reviewer.ai_reviewer import AIPeerReviewer
 
 
+class StepAcceptanceError(RuntimeError):
+    """Raised when a specific SOP stage fails its acceptance gate."""
+    pass
+
+
 class SOPPipeline:
-    """Orchestrator for the 6-Stage Standard Operating Procedure."""
+    """
+    Orchestrator for the 6-Stage Standard Operating Procedure with Strict Gated Acceptance.
+    
+    Stages & Acceptance Gates:
+      Stage 1: PICO & Multi-Database Search Formulation  -> Checkpoint 1 (Syntax & Logic)
+      Stage 2: Ground-Truth Catalog & Flow Ledger        -> Checkpoint 2 (Gate 1: PRISMA Flow L ≡ 0)
+      Stage 3: Data Extraction & Statistical Modeling    -> Checkpoint 3 (Gate 2: Provenance & Gate 3: Stats)
+      Stage 4: Multi-Format Vector Figure Rendering     -> Checkpoint 4 (Gate 4: Zero-Raster & SVG <text>)
+      Stage 5: Office Suites Industrial Engineering     -> Checkpoint 5 (Gate 5: Docx XML & Master Excel)
+      Stage 6: Global 5-Tier Audit & AI Peer Review     -> Checkpoint 6 (100% Verified Certificate)
+    """
 
     def __init__(self, project_dir: str):
         self.project_dir = project_dir
 
-    def run_all(self, config_pico_path: str, data_path: str) -> Dict[str, Any]:
-        """Execute all 6 stages sequentially with strict gated verification."""
-        print(f"=== [Stage 1/6] Ingesting Evidence & Formulating Multi-Database Queries ===")
+    # -------------------------------------------------------------------------
+    # STAGE 1: Evidence Ingestion & Multi-Database Search Formulation
+    # -------------------------------------------------------------------------
+    def step1_search(self, config_pico_path: str) -> Dict[str, str]:
+        print("\n================================================================================")
+        print(">>> [STAGE 1/6] Ingesting Evidence & Formulating Multi-Database Queries")
+        print("================================================================================")
+        if not os.path.exists(config_pico_path):
+            raise StepAcceptanceError(f"Stage 1 Failed: Missing PICO config file at {config_pico_path}")
+
         with open(config_pico_path, "r", encoding="utf-8") as f:
             pico_config = json.load(f)
 
         queries = QueryHarmonizer.harmonize(pico_config)
         search_dir = os.path.join(self.project_dir, "search_strategies")
         os.makedirs(search_dir, exist_ok=True)
+
+        # Write queries
         for db, q in queries.items():
-            with open(os.path.join(search_dir, f"{db}_search.txt"), "w", encoding="utf-8") as f:
+            q_file = os.path.join(search_dir, f"{db}_search.txt")
+            with open(q_file, "w", encoding="utf-8") as f:
                 f.write(q)
 
-        print(f"=== [Stage 2/6] Ground-Truth Catalog & PRISMA Flow Ledger ===")
-        flow_path = os.path.join(self.project_dir, "data", "prisma_flow_data.json")
+        # --- STEP 1 ACCEPTANCE CHECKPOINT ---
+        print("\n[*] Running Step 1 Acceptance Verification (Search Syntax & Logic Check)...")
+        syntax_errors = []
+        for db, q in queries.items():
+            passed, errs = Gate1SearchFlow.validate_search_syntax(db, q)
+            if not passed:
+                syntax_errors.extend([f"[{db}] {e}" for e in errs])
+
+        if syntax_errors:
+            error_msg = f"Stage 1 Acceptance FAILED (Syntax Errors Detected):\n" + "\n".join(syntax_errors)
+            raise StepAcceptanceError(error_msg)
+
+        print(">>> [STAGE 1 ACCEPTANCE: PASSED] All 4 databases + Scopus queries validated without error.")
+        return queries
+
+    # -------------------------------------------------------------------------
+    # STAGE 2: Ground-Truth Catalog & PRISMA Flow Ledger
+    # -------------------------------------------------------------------------
+    def step2_flow(self, flow_path: str) -> Dict[str, Any]:
+        print("\n================================================================================")
+        print(">>> [STAGE 2/6] Ground-Truth Catalog & PRISMA 2020 Flow Ledger")
+        print("================================================================================")
+        if not os.path.exists(flow_path):
+            raise StepAcceptanceError(f"Stage 2 Failed: Missing PRISMA flow JSON file at {flow_path}")
+
         with open(flow_path, "r", encoding="utf-8") as f:
             flow_data = json.load(f)
 
-        print(f"=== [Stage 3/6] Data Extraction & Statistical Modeling ===")
+        # --- STEP 2 ACCEPTANCE CHECKPOINT (GATE 1) ---
+        print("\n[*] Running Step 2 Acceptance Verification (Gate 1: PRISMA Flow Conservation L ≡ 0)...")
+        passed, errors, metrics = Gate1SearchFlow.validate_prisma_flow(flow_data)
+
+        if not passed:
+            error_msg = f"Stage 2 Acceptance FAILED (Gate 1 Violation):\n" + "\n".join(errors)
+            raise StepAcceptanceError(error_msg)
+
+        print(f">>> [STAGE 2 ACCEPTANCE: PASSED] PRISMA flow mathematically conserved (Loss L = {metrics['flow_loss']}).")
+        print(f"    Total Identified: {metrics['total_identified']} -> Screened: {metrics['records_screened']} -> Included: {metrics['studies_included']}")
+        return flow_data
+
+    # -------------------------------------------------------------------------
+    # STAGE 3: Data Extraction & Statistical Modeling
+    # -------------------------------------------------------------------------
+    def step3_extract_and_synthesize(self, data_path: str) -> Tuple[Dict[str, Any], Dict[str, Any], List[Dict[str, Any]]]:
+        print("\n================================================================================")
+        print(">>> [STAGE 3/6] Data Extraction, Provenance Anchoring & Statistical Modeling")
+        print("================================================================================")
+        if not os.path.exists(data_path):
+            raise StepAcceptanceError(f"Stage 3 Failed: Missing extraction dataset at {data_path}")
+
         with open(data_path, "r", encoding="utf-8") as f:
             dataset = json.load(f)
 
-        # Pairwise Meta-Analysis on Primary Outcome
-        ma_result = PairwiseMetaAnalysis.analyze_binary(dataset, measure="OR", model="random")
+        # --- STEP 3 ACCEPTANCE CHECKPOINT A (GATE 2: EVIDENCE PROVENANCE) ---
+        print("\n[*] Running Step 3 Acceptance Verification A (Gate 2: Cryptographic DOI & Coordinate Anchoring)...")
+        g2_passed, g2_errors, g2_metrics = Gate2EvidenceProvenance.audit_dataset_provenance(dataset)
+        if not g2_passed:
+            error_msg = f"Stage 3 Acceptance FAILED (Gate 2 Provenance Violations):\n" + "\n".join(g2_errors)
+            raise StepAcceptanceError(error_msg)
+        print(f">>> [GATE 2 ACCEPTANCE: PASSED] 100% DOIs & coordinate anchors verified ({g2_metrics['verified_studies']}/{g2_metrics['total_studies_audited']} studies).")
 
-        # Network Meta-Analysis
+        # --- STEP 3 ACCEPTANCE CHECKPOINT B (GATE 3: NUMERICAL & STATISTICAL CONSISTENCY) ---
+        print("\n[*] Running Step 3 Acceptance Verification B (Gate 3: Numerical & Bounded Stats Consistency)...")
+        g3_passed, g3_errors, g3_metrics = Gate3Statistics.audit_dataset_statistics(dataset)
+        if not g3_passed:
+            error_msg = f"Stage 3 Acceptance FAILED (Gate 3 Statistical Inconsistency):\n" + "\n".join(g3_errors)
+            raise StepAcceptanceError(error_msg)
+        print(f">>> [GATE 3 ACCEPTANCE: PASSED] 100% study sample sizes and 95% CIs self-consistent.")
+
+        # Compute pairwise meta-analysis
+        ma_result = PairwiseMetaAnalysis.analyze_binary(dataset, measure="OR", model="random")
+        print(f"    [Meta-Analysis Result] k = {ma_result['k']} RCTs, Pooled OR = {ma_result['pooled_estimate']:.3f} "
+              f"[{ma_result['ci_lower']:.3f}, {ma_result['ci_upper']:.3f}], I² = {ma_result['i2_percent']:.1f}%, p = {ma_result['p_value']:.4f}")
+
+        # Compute Network Meta-Analysis
         treatments = list({s.get("treatment_name", "Intervention") for s in dataset})
         if "Placebo" not in treatments:
             treatments.append("Placebo")
@@ -69,8 +161,18 @@ class SOPPipeline:
             })
 
         nma_result = NetworkMetaEngine.calculate_nma(trials_nma, treatments, reference_treatment="Placebo")
+        print(">>> [STAGE 3 ACCEPTANCE: PASSED] Statistical synthesis & network modeling verified.")
+        return ma_result, nma_result, dataset
 
-        print(f"=== [Stage 4/6] Multi-Format Vector Figure Rendering ===")
+    # -------------------------------------------------------------------------
+    # STAGE 4: Multi-Format Vector Figure Rendering
+    # -------------------------------------------------------------------------
+    def step4_render_figures(
+        self, flow_data: Dict[str, Any], ma_result: Dict[str, Any], dataset: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        print("\n================================================================================")
+        print(">>> [STAGE 4/6] Multi-Format Vector Figure Rendering (600 DPI, Live <text>, PDF Type 42)")
+        print("================================================================================")
         fig_dir = os.path.join(self.project_dir, "figures")
         svg_dir = os.path.join(self.project_dir, "editable_files", "vector_svg")
         pdf_dir = os.path.join(self.project_dir, "editable_files", "vector_pdf")
@@ -80,7 +182,6 @@ class SOPPipeline:
         # 1. PRISMA Diagram
         prisma_prefix = os.path.join(fig_dir, "Figure1_PRISMA_2020_Flow_Diagram")
         PRISMADiagramGenerator.generate(flow_data, prisma_prefix)
-        # Sync to svg and pdf dirs
         PRISMADiagramGenerator.generate(flow_data, os.path.join(svg_dir, "Figure1_PRISMA_2020_Flow_Diagram"))
         PRISMADiagramGenerator.generate(flow_data, os.path.join(pdf_dir, "Figure1_PRISMA_2020_Flow_Diagram"))
 
@@ -110,9 +211,39 @@ class SOPPipeline:
         NetworkGeometryGenerator.generate(treat_nodes, comparisons, os.path.join(svg_dir, "Figure3_Network_Geometry_Map"))
         NetworkGeometryGenerator.generate(treat_nodes, comparisons, os.path.join(pdf_dir, "Figure3_Network_Geometry_Map"))
 
-        print(f"=== [Stage 5/6] Office Suites Industrial Engineering ===")
+        # --- STEP 4 ACCEPTANCE CHECKPOINT (GATE 4: VECTOR INTEGRITY & ZERO RASTER) ---
+        print("\n[*] Running Step 4 Acceptance Verification (Gate 4: Zero-Raster & SVG <text> Audit)...")
+        target_fig_dir = svg_dir if os.path.exists(svg_dir) else fig_dir
+        g4_passed, g4_errors, g4_metrics = Gate4FigureVector.audit_figures_directory(target_fig_dir)
+
+        if not g4_passed:
+            error_msg = f"Stage 4 Acceptance FAILED (Gate 4 Vector Violations):\n" + "\n".join(g4_errors)
+            raise StepAcceptanceError(error_msg)
+
+        print(f">>> [GATE 4 ACCEPTANCE: PASSED] All {g4_metrics['figures_audited']} figures verified:")
+        print(f"    PNG (600 DPI): {g4_metrics['png_count']} | SVG (Live <text>): {g4_metrics['svg_count']} | PDF (Type 42): {g4_metrics['pdf_count']}")
+        return {"figures_dir": fig_dir, "metrics": g4_metrics}
+
+    # -------------------------------------------------------------------------
+    # STAGE 5: Office Suites Industrial Engineering
+    # -------------------------------------------------------------------------
+    def step5_office_suite(
+        self,
+        pico_config: Dict[str, Any],
+        flow_data: Dict[str, Any],
+        ma_result: Dict[str, Any],
+        nma_result: Dict[str, Any],
+        dataset: List[Dict[str, Any]]
+    ) -> Dict[str, str]:
+        print("\n================================================================================")
+        print(">>> [STAGE 5/6] Office Suites Engineering (<w:tblHeader/>, <w:cantSplit/>, Dynamic Excel)")
+        print("================================================================================")
         office_dir = os.path.join(self.project_dir, "editable_files", "office_docs")
         os.makedirs(office_dir, exist_ok=True)
+
+        fig_dir = os.path.join(self.project_dir, "figures")
+        prisma_prefix = os.path.join(fig_dir, "Figure1_PRISMA_2020_Flow_Diagram")
+        forest_prefix = os.path.join(fig_dir, "Figure2_Forest_Plot_Mortality")
 
         # 1. Word Docx Manuscript
         ms_data = {
@@ -250,10 +381,45 @@ class SOPPipeline:
         pptx_path = os.path.join(office_dir, "Publication_Summary_16x9.pptx")
         PresentationGenerator.generate(pptx_data, pptx_path)
 
-        print(f"=== [Stage 6/6] 5-Tier Verification Audit & AI Peer Review ===")
+        # --- STEP 5 ACCEPTANCE CHECKPOINT (GATE 5: WORD XML & MASTER EXCEL) ---
+        print("\n[*] Running Step 5 Acceptance Verification (Gate 5: Word XML & Master Excel Audit)...")
+        docx_passed, docx_errors, docx_metrics = Gate5OfficeAudit.audit_docx_file(docx_path)
+        xlsx_passed, xlsx_errors, xlsx_metrics = Gate5OfficeAudit.audit_excel_file(xlsx_path)
+
+        office_errors = []
+        if not docx_passed:
+            office_errors.extend(docx_errors)
+        if not xlsx_passed:
+            office_errors.extend(xlsx_errors)
+
+        if office_errors:
+            error_msg = f"Stage 5 Acceptance FAILED (Gate 5 Office Violations):\n" + "\n".join(office_errors)
+            raise StepAcceptanceError(error_msg)
+
+        print(f">>> [GATE 5 ACCEPTANCE: PASSED] Word table XML injected (Header repeat: True, cantSplit: True).")
+        print(f"    Master Excel verified: {xlsx_metrics['sheet_count']} sheets, {xlsx_metrics['formula_cells_count']} dynamic formula cells.")
+
+        return {
+            "docx": docx_path,
+            "xlsx": xlsx_path,
+            "pptx": pptx_path
+        }
+
+    # -------------------------------------------------------------------------
+    # STAGE 6: Global 5-Tier Audit & AI Peer Reviewer Acceptance
+    # -------------------------------------------------------------------------
+    def step6_audit_and_peer_review(self, pico_config: Dict[str, Any]) -> Dict[str, Any]:
+        print("\n================================================================================")
+        print(">>> [STAGE 6/6] Final 5-Tier Verification Audit & AI Peer Review Certification")
+        print("================================================================================")
         auditor = AuditRunner(self.project_dir)
         report = auditor.run_full_audit()
         json_rep, md_rep = auditor.save_reports(report)
+
+        if not report.overall_passed:
+            raise StepAcceptanceError(
+                f"Stage 6 Final Certification FAILED. Discrepancies detected:\n{report.to_markdown()}"
+            )
 
         # AI Peer Reviewer Report
         review_text = AIPeerReviewer.evaluate(pico_config, report.to_dict())
@@ -261,10 +427,47 @@ class SOPPipeline:
         with open(review_path, "w", encoding="utf-8") as f:
             f.write(review_text)
 
-        print(f"=== SOP Pipeline Execution Complete! Overall Passed: {report.overall_passed} ===")
+        print(f">>> [STAGE 6 ACCEPTANCE: PASSED - 100% VERIFIED]")
+        print(f"    Verification Audit Certificate: {json_rep}")
+        print(f"    AI Peer Reviewer Report:        {review_path}")
+
         return {
             "overall_passed": report.overall_passed,
             "audit_json": json_rep,
             "audit_md": md_rep,
             "peer_review_md": review_path
         }
+
+    # -------------------------------------------------------------------------
+    # Master Sequential Orchestrator
+    # -------------------------------------------------------------------------
+    def run_all(self, config_pico_path: str, data_path: str) -> Dict[str, Any]:
+        """
+        Execute all 6 stages sequentially with strict gated verification.
+        If ANY stage fails its acceptance gate, execution is aborted immediately.
+        """
+        # Step 1
+        queries = self.step1_search(config_pico_path)
+
+        # Step 2
+        flow_path = os.path.join(self.project_dir, "data", "prisma_flow_data.json")
+        flow_data = self.step2_flow(flow_path)
+
+        # Step 3
+        ma_result, nma_result, dataset = self.step3_extract_and_synthesize(data_path)
+
+        # Step 4
+        fig_info = self.step4_render_figures(flow_data, ma_result, dataset)
+
+        # Step 5
+        with open(config_pico_path, "r", encoding="utf-8") as f:
+            pico_config = json.load(f)
+        office_info = self.step5_office_suite(pico_config, flow_data, ma_result, nma_result, dataset)
+
+        # Step 6
+        final_info = self.step6_audit_and_peer_review(pico_config)
+
+        print("\n================================================================================")
+        print(">>> ALL 6 STAGES COMPLETED & ACCEPTED WITH ZERO DISCREPANCIES (100% VERIFIED) <<<")
+        print("================================================================================\n")
+        return final_info

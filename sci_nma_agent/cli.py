@@ -1,6 +1,6 @@
 """
 Command-Line Interface (CLI) for sci-nma-agent.
-Provides subcommands: init, search, synthesize, render, audit, review, run-all.
+Provides subcommands: init, search, synthesize, render, audit, review, run-all, and run-step.
 """
 
 import sys
@@ -8,7 +8,7 @@ import os
 import json
 import argparse
 from .core.audit_runner import AuditRunner
-from .workflow.pipeline import SOPPipeline
+from .workflow.pipeline import SOPPipeline, StepAcceptanceError
 from .databases.query_harmonizer import QueryHarmonizer
 from .meta_engine.pairwise import PairwiseMetaAnalysis
 
@@ -40,8 +40,15 @@ def main():
     synth_parser = subparsers.add_parser("synthesize", help="Execute pairwise meta-analysis on dataset")
     synth_parser.add_argument("--data", required=True, help="Path to dataset JSON")
 
+    # Command: run-step
+    step_parser = subparsers.add_parser("run-step", help="Execute an individual SOP stage with strict acceptance gate")
+    step_parser.add_argument("--stage", type=int, choices=[1, 2, 3, 4, 5, 6], required=True, help="Stage number (1-6)")
+    step_parser.add_argument("--project", required=True, help="Path to project directory")
+    step_parser.add_argument("--pico", help="Path to PICO config")
+    step_parser.add_argument("--data", help="Path to dataset")
+
     # Command: run-all
-    run_parser = subparsers.add_parser("run-all", help="Execute full 6-stage SOP pipeline")
+    run_parser = subparsers.add_parser("run-all", help="Execute full 6-stage SOP pipeline with step-by-step acceptance gates")
     run_parser.add_argument("--project", required=True, help="Path to project directory")
     run_parser.add_argument("--pico", help="Path to PICO config (default: <project>/config_pico.json)")
     run_parser.add_argument("--data", help="Path to dataset (default: <project>/data/extraction_dataset.json)")
@@ -88,15 +95,59 @@ def main():
         print(f"Pooled OR: {res['pooled_estimate']:.3f} (95% CI: [{res['ci_lower']:.3f}, {res['ci_upper']:.3f}])")
         print(f"Heterogeneity I²: {res['i2_percent']:.1f}%, τ²: {res['tau2']:.4f}, p: {res['p_value']:.4f}")
 
+    elif args.command == "run-step":
+        p_dir = args.project
+        pico_p = args.pico or os.path.join(p_dir, "config_pico.json")
+        data_p = args.data or os.path.join(p_dir, "data", "extraction_dataset.json")
+        flow_p = os.path.join(p_dir, "data", "prisma_flow_data.json")
+
+        pipeline = SOPPipeline(p_dir)
+        try:
+            if args.stage == 1:
+                pipeline.step1_search(pico_p)
+            elif args.stage == 2:
+                pipeline.step2_flow(flow_p)
+            elif args.stage == 3:
+                pipeline.step3_extract_and_synthesize(data_p)
+            elif args.stage == 4:
+                with open(flow_p, "r", encoding="utf-8") as f:
+                    flow_data = json.load(f)
+                with open(data_p, "r", encoding="utf-8") as f:
+                    dataset = json.load(f)
+                ma_res = PairwiseMetaAnalysis.analyze_binary(dataset)
+                pipeline.step4_render_figures(flow_data, ma_res, dataset)
+            elif args.stage == 5:
+                with open(pico_p, "r", encoding="utf-8") as f:
+                    pico_config = json.load(f)
+                with open(flow_p, "r", encoding="utf-8") as f:
+                    flow_data = json.load(f)
+                with open(data_p, "r", encoding="utf-8") as f:
+                    dataset = json.load(f)
+                ma_res, nma_res, _ = pipeline.step3_extract_and_synthesize(data_p)
+                pipeline.step5_office_suite(pico_config, flow_data, ma_res, nma_res, dataset)
+            elif args.stage == 6:
+                with open(pico_p, "r", encoding="utf-8") as f:
+                    pico_config = json.load(f)
+                pipeline.step6_audit_and_peer_review(pico_config)
+            print(f"\nStage {args.stage} successfully executed and accepted!")
+            sys.exit(0)
+        except StepAcceptanceError as e:
+            print(f"\n[CRITICAL ERROR] {e}")
+            sys.exit(1)
+
     elif args.command == "run-all":
         p_dir = args.project
         pico_p = args.pico or os.path.join(p_dir, "config_pico.json")
         data_p = args.data or os.path.join(p_dir, "data", "extraction_dataset.json")
 
         pipeline = SOPPipeline(p_dir)
-        res = pipeline.run_all(pico_p, data_p)
-        print(f"\nPipeline run completed. Overall Passed: {res['overall_passed']}")
-        sys.exit(0 if res["overall_passed"] else 1)
+        try:
+            res = pipeline.run_all(pico_p, data_p)
+            print(f"Pipeline run completed. Overall Passed: {res['overall_passed']}")
+            sys.exit(0 if res["overall_passed"] else 1)
+        except StepAcceptanceError as e:
+            print(f"\n[PIPELINE ABORTED] Acceptance gate failure:\n{e}")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
