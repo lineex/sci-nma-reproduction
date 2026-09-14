@@ -3,6 +3,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Status-Production%20Ready-success" alt="Status"/>
   <img src="https://img.shields.io/badge/Verification%20Gates-5--Tier%20Enforced-blue" alt="Verification Gates"/>
+  <img src="https://img.shields.io/badge/Tests-21%20Passed-brightgreen" alt="Tests"/>
+  <img src="https://img.shields.io/badge/Literature%20Corpus-Zero%20Relevance%20Truncation-purple" alt="Corpus"/>
   <img src="https://img.shields.io/badge/PRISMA-2020%20Compliant-orange" alt="PRISMA 2020"/>
   <img src="https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue" alt="Python Version"/>
   <img src="https://img.shields.io/badge/Core%20Databases-PubMed%20%7C%20Embase%20%7C%20Cochrane%20%7C%20WoS-indigo" alt="Databases"/>
@@ -45,6 +47,37 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
    - Submission-Ready Word Manuscript (`.docx` with XML anti-split tables)
    - Formula-Backed Master Research Database (`.xlsx` with live formulas)
    - Academic Presentation Slide Deck (16:9 widescreen `.pptx`)
+
+---
+
+
+### Full Corpus Ingestion & Two-Stage Screening Workflow
+
+1. **Zero Relevance Truncation Policy (全量检索不截断)**:
+   - Systematic reviews must never truncate retrieval results by arbitrary relevance rank (e.g. top-50 cutoff).
+   - Ingests all hit records from **PubMed, Embase, Web of Science, and Cochrane Library** across multiple batch landing files (`raw_exports/{pubmed, embase, wos, cochrane}`).
+   - Native parsers for PubMed `.nbib`/`.medline`, Embase/Cochrane `.ris`, Web of Science `.txt`/`.ciw`, and Cochrane `.csv`.
+
+2. **Browser Institutional Session Reuse (机构会话复用)**:
+   - Directly attaches to existing running Chrome instances with university/hospital SSO or WebVPN via remote debugging:
+     `chrome.exe --remote-debugging-port=9222`
+   - Active probe validates institutional access for Embase (Elsevier), Web of Science (Clarivate), and Cochrane (Wiley) before export, preventing export throttles.
+
+3. **Multi-Source Provenance-Retaining Deduplication (带溯源多标签去重)**:
+   - Multi-tier matching: DOI exact match -> PMID exact match -> Normalized Title + Year string similarity.
+   - When duplicate citations merge, contributing database source tags (`sources: ["PubMed", "Embase", "Web of Science"]`) and native database IDs (`pmid`, `embase_pui`, `wos_uid`, `cochrane_id`) are preserved intact.
+   - Mathematical accounting: N_duplicates = N_total_identified - N_unique_screened.
+
+4. **Search Flow Conservation Audit Ledger (检索流量守恒审计表)**:
+   - Verifies that records across all landed export batches match reported database hit counts (100% batch completeness).
+   - Generates publication-grade `Search_Flow_Audit_Table.xlsx` and `prisma_flow_data.json` for supplementary files.
+
+5. **Two-Stage Unified Screening Ledger (两阶段统一筛选表)**:
+   - Automatically scaffolds `screening/master_screening_table.xlsx` with data-validation dropdowns.
+   - **Stage 1: Title/Abstract Screening (初筛)**: records exclusions with broad clinical reasons.
+   - **Stage 2: Full-Text Eligibility Screening (复筛)**: enforces 5 standard hierarchical exclusion reasons (*Wrong Population*, *Wrong Intervention*, *No Control Group*, *Ineligible Study Design*, *Duplicate Cohort*).
+   - `sci-nma-agent screen-check` reconciles decisions and mathematically verifies Gate 1 PRISMA Flow Conservation:
+     L = N_total - (N_duplicates + N_tiab_excluded + N_not_retrieved + N_fulltext_excluded + N_included) == 0.
 
 ---
 
@@ -152,6 +185,25 @@ The framework strictly enforces the **Anti-Shortcut Protocol**: Every single pha
 ---
 
 ## 中文说明
+
+### 全量文献检索记录库与两阶段筛选工作流
+
+1. **拒绝相关性截断（Zero Relevance Truncation）**：
+   - 绝不采取前 20/50 条截断策略，杜绝严重的文献检索选择偏倚（Selection Bias）。
+   - 全量支持多批次分卷落盘文件扫描：`raw_exports/{pubmed, embase, wos, cochrane}`。
+   - 内置 PubMed `.nbib`、Embase `.ris`（含 EMTREE 词与 PUI 编号）、WoS `.txt`/`.ciw`（含 WOS Accession Number）、Cochrane `.csv` 原生解析器。
+2. **浏览器机构用户登录状态复用（Session Reuse）**：
+   - 支持直连日常使用的 Chrome（启动参数 `--remote-debugging-port=9222`）或持久化用户 Profile。
+   - 自动探针检测 Embase/WoS/Cochrane 校园网 SSO/WebVPN 认证状态，过期自动挂起等待用户浏览器登录后无缝续导。
+3. **带溯源多标签去重（Provenance Deduplication）**：
+   - 三级锚定去重（DOI 精确匹配 -> PMID 精确匹配 -> 规范化 Title + 出版年份比对）。
+   - 去重时严格保留多库复合来源标签与各库原生编号（`sources: ["PubMed", "Embase", "WoS"]`）。
+4. **检索流量守恒审计表（Search Flow Audit Table）**：
+   - 校验各库落盘文件记录数与检索原生命中数 100% 匹配，导出中英双语可投顶刊的 Excel 审计表。
+5. **两阶段统一筛选主表（Master Screening Table）**：
+   - 自动生成带下拉数据验证的 `screening/master_screening_table.xlsx`。
+   - 严格约束复筛 5 大标准化排除原因（非目标人群、非目标干预、缺乏合规对照、非合规设计、重复队列），一键校验 PRISMA 流量闭环 L == 0。
+
 
 ### 核心定位与设计目标
 

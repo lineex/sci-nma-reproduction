@@ -450,3 +450,33 @@ def apply_table_engineering_rules(table):
   - 脚本与输出文本是否强制 UTF-8？是否存在 `?`、乱码或破折号异常？
 - [ ] **6 大格式完整性**：
   - PNG、SVG、PDF、DOCX、PPTX、XLSX 以及 Audit Report 是否全部在本地磁盘生成就绪？
+
+
+
+### 1.16 机构浏览器会话复用、全量检索不截断、分批落盘与带溯源统一筛选表执行规范 (Full Corpus Landing, Institutional Session Reuse & Provenance Screening Protocol)
+
+1. **拒绝相关性截断原则（Zero Relevance Truncation Rule）**：
+   - 定量系统评价与 Meta 分析在检索四大核心数据库（PubMed, Embase, Web of Science, Cochrane Library）时，必须**全量获取并落盘所有命中文献记录**，绝对严禁采取“按相关性前 20/50 条截断”的偷懒行为。
+   - 检索原生命中数（$N_{\text{hits}}$）必须 $100\%$ 录入《检索流量守恒审计表》（Search Flow Conservation Audit Ledger）。
+2. **浏览器机构用户登录状态复用规范（Browser Institutional Session Reuse Protocol）**：
+   - 针对 Embase、Web of Science、Cochrane Library 等商业学术数据库的机构权限访问，智能体通过两种方式复用真实机构会话：
+     * **方式 A（直连当前 Chrome）**：以 `--remote-debugging-port=9222` 启动日常 Chrome，智能体直接挂接（Attach）到当前已有会话；
+     * **方式 B（持久化 Profile）**：使用持久化用户数据目录，保留本地 Cookies、Session 与 LocalStorage。
+   - 执行检索或批量导出前，智能体自动运行 DOM 探针检测 `Access provided by [Institution]` 机构认证状态；若会话过期，安全挂起等待用户在浏览器中完成 SSO/VPN 认证后自动无缝续导，绝不索取明文账号密码。
+3. **分批落盘与多格式智能解析规范（Multi-Batch Landing & Parsing Protocol）**：
+   - 针对商业库单次导出上限（Embase 500条/批，WoS 500~1000条/批），落盘至 `raw_exports/{database}/` 目录；
+   - 自动解析 PubMed `.nbib`、Embase/Cochrane `.ris`、WoS `.txt`/`.ciw`、Cochrane `.csv`，校验落盘记录总数与数据库原生命中数绝对相等。
+4. **带溯源多标签去重规范（Multi-Source Provenance Deduplication Protocol）**：
+   - 去重采用三级比对（DOI 精确匹配 -> PMID 精确匹配 -> 规范化 Title + 出版年份比对）；
+   - **严禁物理丢弃来源身份**：重复合并时必须完整保留各库复合来源标签与原生唯一编码（`sources: ["PubMed", "Embase", "Web of Science"]`，`pmid`, `embase_pui`, `wos_uid`, `cochrane_id`）。
+5. **两阶段统一筛选主表与闭环守恒规范（Two-Stage Master Screening Table Protocol）**：
+   - 自动生成带数据验证下拉菜单的 `screening/master_screening_table.xlsx`；
+   - **阶段一初筛（TiAb Screening）**：记录题名摘要排除项与临床原因；
+   - **阶段二复筛（Full-Text Screening）**：记录全文获取状态，复筛排除**必须严格按照 5 大标准分类归因**：
+     * `Wrong Population`（非目标人群）
+     * `Wrong Intervention`（非目标干预）
+     * `No Control Group`（缺乏合规对照）
+     * `Ineligible Study Design`（非合规研究设计，如动物/回顾性/会议摘要）
+     * `Duplicate Cohort`（同一临床试验重复发表）
+   - 严格约束 PRISMA 流量闭环损耗 $L \equiv 0$：
+     $$L = N_{\text{total}} - (N_{\text{duplicates}} + N_{\text{tiab\_excluded}} + N_{\text{not\_retrieved}} + N_{\text{fulltext\_excluded}} + N_{\text{included}}) \equiv 0$$

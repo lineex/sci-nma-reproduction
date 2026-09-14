@@ -10,6 +10,12 @@ import json
 from typing import Dict, Any, List, Tuple
 
 from ..databases.query_harmonizer import QueryHarmonizer
+from ..databases.corpus_repository import CorpusRepository
+from ..databases.deduplicator import ProvenanceDeduplicator
+from ..databases.audit_ledger import SearchAuditLedger
+from ..databases.screening_ledger import ScreeningLedger
+from ..databases.session_manager import BrowserSessionManager
+
 from ..meta_engine.pairwise import PairwiseMetaAnalysis
 from ..meta_engine.network_meta import NetworkMetaEngine
 from ..generators.prisma_diagram import PRISMADiagramGenerator
@@ -91,8 +97,29 @@ class SOPPipeline:
     # -------------------------------------------------------------------------
     def step2_flow(self, flow_path: str) -> Dict[str, Any]:
         print("\n================================================================================")
-        print(">>> [STAGE 2/6] Ground-Truth Catalog & PRISMA 2020 Flow Ledger")
+        print(">>> [STAGE 2/6] Ground-Truth Catalog, Full Corpus Landing & PRISMA Flow Ledger")
         print("================================================================================")
+
+        raw_exports_dir = os.path.join(self.project_dir, "raw_exports")
+        screening_xlsx = os.path.join(self.project_dir, "screening", "master_screening_table.xlsx")
+
+        # 1. Ingest landed batch files if raw_exports exists and has files
+        if os.path.exists(raw_exports_dir):
+            ingest_res = CorpusRepository.scan_and_ingest(raw_exports_dir)
+            if ingest_res["total_raw_records"] > 0:
+                print(f"[*] Landed raw export records found: {ingest_res['total_raw_records']} records.")
+                unique_recs, dedup_metrics, _ = ProvenanceDeduplicator.deduplicate(ingest_res["records"])
+                print(f"    Deduplication completed: {dedup_metrics['unique_records']} unique records ({dedup_metrics['duplicates_removed']} duplicates).")
+
+                # Generate Master Screening Table if not already existing
+                if not os.path.exists(screening_xlsx):
+                    ScreeningLedger.generate_screening_workbook(unique_recs, screening_xlsx)
+                    print(f"    Created Master Screening Table: {screening_xlsx}")
+
+                # If screening table exists, reconcile decisions
+                if os.path.exists(screening_xlsx) and os.path.exists(flow_path):
+                    ScreeningLedger.reconcile_screening_decisions(screening_xlsx, flow_path)
+
         if not os.path.exists(flow_path):
             raise StepAcceptanceError(f"Stage 2 Failed: Missing PRISMA flow JSON file at {flow_path}")
 

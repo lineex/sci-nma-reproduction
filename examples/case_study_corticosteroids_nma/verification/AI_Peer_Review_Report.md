@@ -1,7 +1,7 @@
 # Peer Review Evaluation Report
 
 **Manuscript Title**: Corticosteroid Regimens for Sepsis and Septic Shock: A Systematic Review and Network Meta-Analysis of Randomized Controlled Trials  
-**Review Date**: September 11, 2026  
+**Review Date**: September 14, 2026  
 **Journal Tier**: Top-Tier Clinical Medicine (*Critical Care* / *The Lancet* / *JAMA*)  
 **Referee Recommendation**: **Accept as Is / Minor Revision**
 
