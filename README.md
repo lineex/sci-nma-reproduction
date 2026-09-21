@@ -81,6 +81,34 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
 
 ---
 
+
+### Mandatory NMA Figure & Table Specification (v2026-09-21)
+
+Aligned with top-tier publications (*Critical Care* 2026, doi:10.1186/s13054-026-06185-5; *BMJ* 2026;394:e100561, doi:10.1136/bmj-2026-100561):
+
+1. **Figure 1 Unique Standard (PRISMA 2020 Two-Column Layout)**:
+   - **Left column**: `Identification of studies via databases and registers`
+   - **Right column**: `Identification of studies via other methods` (strictly preserved with `0 additional bibliographic records` if none found; citation/registry checks never inflate the database denominator).
+   - **Vertical stage tabs**: `Identification`, `Screening`, `Included` (rotated 90° on the far left).
+   - **Flow Conservation Equation**:
+     $$DB\_TOTAL = \sum \text{database\_source\_counts}$$
+     $$AFTER\_DEDUP = DB\_TOTAL - DUPLICATES - \text{other\_pre\_screen\_removals}$$
+     $$REPORTS\_SOUGHT = SCREENED - TITLE\_ABSTRACT\_EXCLUDED$$
+     $$REPORTS\_ASSESSED = REPORTS\_SOUGHT - REPORTS\_NOT\_RETRIEVED$$
+     $$REPORTS\_INCLUDED = REPORTS\_ASSESSED - \sum \text{full\_text\_exclusion\_reasons}$$
+     $$L \equiv 0$$
+   - Three synchronized formats: 600-dpi PNG, live-text SVG (no raster `<image>`), Type 42 vector PDF.
+
+2. **Dual NMA Reference Tracks**:
+   - **Frequentist Track** (*Crit Care* 2026): Fig 1 PRISMA $\to$ Fig 2 RoB 2 matrix $\to$ Fig 3 Network geometry + aligned relative-effect forest $\to$ Fig 4 CINeMA certainty heatmap $\to$ Fig 5 Funnel plot audit.
+   - **Hierarchical Bayesian Track** (*BMJ* 2026): Fig 1 PRISMA $\to$ Fig 2 Outcome-specific networks $\to$ Fig 3 Posterior forest $\to$ Fig 4-5 Dose-response curves (95% CrI, MCID) $\to$ Fig 6 Secondary outcomes forest $\to$ Appendix MCMC diagnostics (R-hat, bulk/tail ESS, divergences, PPC).
+
+3. **Reusable Data Contract Templates**:
+   - [`data/nma_figure_table_spec_template.json`](data/nma_figure_table_spec_template.json)
+   - [`figures/NMA_FIGURE_TABLE_SPECIFICATION_TEMPLATE.md`](figures/NMA_FIGURE_TABLE_SPECIFICATION_TEMPLATE.md)
+
+---
+
 ### Architecture Overview
 
 ```text
@@ -185,6 +213,27 @@ The framework strictly enforces the **Anti-Shortcut Protocol**: Every single pha
 ---
 
 ## 中文说明
+
+### 强制开源 NMA 图表与 Figure 1 固定范式（v2026-09-21 最新版）
+
+与顶级医学期刊（*Critical Care* 2026, doi:10.1186/s13054-026-06185-5 与 *BMJ* 2026;394:e100561）严格对齐：
+
+1. **Figure 1 的唯一范式（PRISMA 2020 双栏固定标准）**：
+   - **左栏**：`Identification of studies via databases and registers`
+   - **右栏**：`Identification of studies via other methods`（即使为零也必须明确保留 `0 additional bibliographic records`，审计性检索绝不虚增数据库分母）。
+   - **最左侧阶段带**：`Identification`、`Screening`、`Included` 标签垂直旋转 90°。
+   - **视觉规范**：顶部橙色/琥珀色实心横幅、白色流程框带深色边框、黑色实线箭头。
+   - **流量守恒**：严格满足闭环方程，全局流向损耗 $L \equiv 0$。
+   - **三格式强同步**：600-dpi PNG、含原生 `<text>` 节点的纯矢量 SVG、嵌入 Type 42 TrueType 字体的矢量 PDF。
+
+2. **NMA 频率学 vs 贝叶斯双轨参考模式**：
+   - **频率学 NMA Track**（*Crit Care* 2026）：Fig 1 PRISMA $\to$ Fig 2 RoB 2 矩阵 $\to$ Fig 3 网络几何与相对效应森林图 $\to$ Fig 4 CINeMA 确定性热图 $\to$ Fig 5 漏斗图。
+   - **层次贝叶斯 NMA Track**（*BMJ* 2026）：Fig 1 PRISMA $\to$ Fig 2 结局特异性网络图 $\to$ Fig 3 后验森林图 $\to$ Fig 4-5 剂量-结局与类别剂量反应曲线 $\to$ Fig 6 次要结局森林图 $\to$ 附录 MCMC 诊断。
+
+3. **开箱即用数据契约模版**：
+   - 标准填空 JSON 模版：[`data/nma_figure_table_spec_template.json`](data/nma_figure_table_spec_template.json)
+   - 规范 Markdown 模版：[`figures/NMA_FIGURE_TABLE_SPECIFICATION_TEMPLATE.md`](figures/NMA_FIGURE_TABLE_SPECIFICATION_TEMPLATE.md)
+
 
 ### 全量文献检索记录库与两阶段筛选工作流
 
