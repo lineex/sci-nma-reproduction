@@ -47,6 +47,24 @@ Before concluding any synthesis or reproduction task, you must enforce the **5-T
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+
+### Mandatory NMA Figure & Table Specification (PRISMA 2020 Two-Column Standard)
+1. **Figure 1 Unique Standard**: Every project Figure 1 MUST adhere to the PRISMA 2020 two-column flow diagram:
+   - Left column: `Identification of studies via databases and registers`
+   - Right column: `Identification of studies via other methods` (maintained even if 0 additional records)
+   - Left vertical tabs: `Identification`, `Screening`, `Included` (rotated 90°)
+   - Header: Solid orange/amber bar (`#F59E0B` / `#D97706`), white boxes with dark borders, black directional arrows.
+   - Exact mathematical flow closure: $L = 0$.
+2. **Dual NMA Tracks**:
+   - **Frequentist Track** (e.g. *Crit Care* 2026, doi:10.1186/s13054-026-06185-5): Fig 1 PRISMA, Fig 2 RoB 2 matrix, Fig 3 Network geometry + aligned relative-effect forest, Fig 4 CINeMA certainty heatmap.
+   - **Hierarchical Bayesian Track** (e.g. *BMJ* 2026;394:e100561): Fig 1 Two-column PRISMA, Fig 2 Outcome-specific networks, Fig 3 Posterior relative effects forest, Fig 4-5 Dose-response curves with 95% CrI, Fig 6 Secondary outcomes forest, plus MCMC diagnostics (R-hat, bulk/tail ESS, trace, PPC).
+3. **Network & Bayesian Identifiability Gates**:
+   - Network graphs MUST only draw direct randomized comparisons (no artificial edge completion).
+   - Disconnected networks must be analyzed as separate components and NOT ranked against each other.
+   - Star networks without closed loops must state `inconsistency not assessable`.
+   - Bayesian class/hierarchical models must satisfy independent-trial, common-bridge, exchangeable-endpoint, and event-information gates before fitting; otherwise output `omitted - identifiability gates not met`.
+4. **Data Contract Templates**: Reusable fill-in templates provided in `data/nma_figure_table_spec_template.json` and `figures/NMA_FIGURE_TABLE_SPECIFICATION_TEMPLATE.md`.
+
 ### Quantitative Formulas & Gates:
 - **PRISMA Mathematical Flow Conservation ($L \equiv 0$)**:
   $$\sum N_{\text{databases}} + N_{\text{registries/other}} = N_{\text{total\_records}}$$

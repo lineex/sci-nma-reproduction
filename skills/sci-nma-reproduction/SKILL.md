@@ -1,5 +1,6 @@
 ---
 name: sci-nma-reproduction
+version: 2026-09-21
 description: Publication-grade reproduction, calibration, and synthesis skill for top-tier medical journals (Critical Care, The Lancet, JAMA, BMJ, NEJM). Covers Quantitative Systematic Reviews/Meta-Analyses (PRISMA 2020, multi-panel trajectory forest plots, NMA geometry) and Qualitative Narrative Reviews/Expert Consensus (mechanistic pathophysiology hubs, unabridged master tables). Enforces mandatory 5-tier verification gates (search syntax & multi-database flow conservation, DOI/PMID/PMCID cryptographic provenance, cell-level statistical audit & flow closure reconciliation, zero-raster code vector rendering, anti-collision bounding box validation, biological anatomical fidelity constraints, and automated verification audit reporting), live text vector SVGs, vector PDFs, Word docx with tblHeader/cantSplit, 16:9 PPTX, and multi-sheet Excel databases.
 ---
 
@@ -186,11 +187,142 @@ description: Publication-grade reproduction, calibration, and synthesis skill fo
 
 3. **有界变量 Meta 分析的 Logit 转换铁律**：
    - 对严格处于 $(0, 1)$ 有界区间的临床指标（如 AUROC、C-index、患病率、敏感度、特异度），在进行随机效应模型计算时，必须优先使用 Logit 变换（$\text{logit}(p) = \ln\frac{p}{1-p}$）进入正态尺度计算，避免直接线性加权导致的置信区间越界（$> 1.0$ 或 $< 0.0$）；
-   - 计算完成后必须通过逆 Logit 变换（$\text{ilogit}(z) = \frac{e^z}{1+e^z}$）反演回临床直观的 $(0, 1)$ 尺度，保证统计严密性与顶刊同行评议标准一致。
+    - 计算完成后必须通过逆 Logit 变换（$\text{ilogit}(z) = \frac{e^z}{1+e^z}$）反演回临床直观的 $(0, 1)$ 尺度，保证统计严密性与顶刊同行评议标准一致。
+
+### 1.16 强制可填空 NMA 图表规格与 Figure 1 固定版式 (Mandatory Fill-in NMA Figure/Table Specification)
+
+本节是所有后续 RCT 系统评价、频率学 NMA 和 Bayesian 分层 NMA 项目的统一优先级规范。它补充并在 Figure 1 版式上优先于 1.13 和 1.15 中的历史示例；历史示例中的数字、疾病、干预和结论只能作为视觉参考，绝不得复制到新项目。
+
+#### 1.16.1 Figure 1 的唯一允许版式
+
+每个项目的 Figure 1 必须采用 PRISMA 2020 双栏 study-selection flow diagram，不能改成单栏、仪表板或自创流程布局：
+
+1. 左栏标题必须为 `Identification of studies via databases and registers`。
+2. 右栏标题必须为 `Identification of studies via other methods`。
+3. 左侧阶段带必须按顺序显示 `Identification`、`Screening`、`Included`；阶段标签垂直旋转 90°，位于流程主体最左侧。
+4. 顶部标题栏使用橙色/琥珀色实心矩形；流程框使用白色矩形、深色边框；方向箭头使用黑色实线箭头。不得用圆角彩色卡片替代该结构。
+5. 左栏至少包含：数据库检出、筛选前去重、记录筛选、记录排除、报告索取、未获取报告、全文评估、全文排除细项、研究/报告纳入。右栏独立包含 citation searching、registry/other-method audit、索取、未获取、评估、排除和其他方法纳入状态。
+6. 右栏即使为零也必须保留，并明确写出 `0 additional bibliographic records` 或等价含义；审计性 registry/citation 检查不得增加左栏数据库分母，除非实际产生新的书目记录。
+7. 数据库记录、全文排除细项和纳入数必须来自结构化 JSON/CSV 数据源；禁止在绘图代码中硬编码示例文章数字。每次重绘必须保存数据源、脚本、输出和验证日志。
+8. 图中必须区分 `study-level inclusion`、`report-level inclusion` 和 `endpoint/network adjudication`。若筛选尚未完成，必须在框内或图题中标明 `pre-adjudication`、`audit-only` 或 `not a final pooled set`，不得把候选报告写成最终确认性纳入研究。
+
+Figure 1 的流量方程必须自动校验：
+
+```text
+DB_TOTAL = sum(database_source_counts)
+AFTER_DEDUP = DB_TOTAL - DUPLICATES - other_pre_screen_removals
+REPORTS_SOUGHT = SCREENED - TITLE_ABSTRACT_EXCLUDED
+REPORTS_ASSESSED = REPORTS_SOUGHT - REPORTS_NOT_RETRIEVED
+REPORTS_INCLUDED = REPORTS_ASSESSED - sum(full_text_exclusion_reasons)
+```
+
+若项目使用“报告”与“研究”两个不同分母，必须在 JSON 中分别保存并在图题解释，不能用研究数替代报告数。
+
+固定交付格式：600-dpi PNG；保留原生 `<text>` 节点且不含 `<image>` 的可编辑 SVG；嵌入 Type 42 TrueType 字体的矢量 PDF。三种格式必须由同一个主脚本和同一份数据生成，并同步到 manuscript、DOCX、PPTX 和 submission archive。
+
+#### 1.16.2 NMA 参考模式与图表序列
+
+附件参考研究只定义图表逻辑，不提供新项目数据：
+
+- Critical Care 2026, doi `10.1186/s13054-026-06185-5`：频率学随机效应 NMA 的参考模式，包含 PRISMA、RoB 2、网络几何 + 相对效应森林图、CINeMA 证据确定性热图，以及检索、节点定义、提取、敏感性和报告偏倚附表。
+- BMJ 2026;394:e100561, doi `10.1136/bmj-2026-100561`：hierarchical Bayesian NMA + dose-response NMA 的参考模式，包含多来源 PRISMA、结局特异网络图、后验森林图、剂量-结局图、类别特异剂量反应曲线、次要结局森林图和 MCMC/后验诊断附录。
+
+**频率学 NMA track：**
+
+- Figure 1：固定双栏 PRISMA。
+- Figure 2：RoB 2 traffic-light matrix + domain summary。
+- Figure 3：左侧网络几何，右侧与网络节点/比较顺序严格对应的相对效应森林图；每条边必须有直接随机比较依据。
+- Figure 4：相对效应与 CINeMA 确定性热图或 league-style summary。
+- 可选 Figure 5：仅对达到预设研究数阈值的直接比较制作 comparison-adjusted funnel plot/小样本效应审计。
+
+**Hierarchical Bayesian NMA track：**
+
+- Figure 1：仍使用同一双栏 PRISMA，不得因 Bayesian 模型而更换流程版式。
+- Figure 2：按结局/部位分别绘制 outcome-specific network plots。
+- Figure 3：posterior relative-effect forest plot，明确 posterior summary、95% CrI、参考节点和人群分层。
+- Figure 4：剂量-结局或协变量-结局后验曲线，标出剂量转换、MCID 和 95% CrI。
+- Figure 5：按干预类别/节点绘制 posterior dose-response curves，并报告函数形式、结点/样条、先验和不确定性。
+- Figure 6：次要二分类结局或安全性结局的后验森林图。
+- Supplementary figures：trace/density、R-hat、bulk/tail ESS、divergence、posterior predictive check、排名概率和敏感性分析。
+
+#### 1.16.3 可填空数据契约
+
+新项目必须先复制项目模板，再填入实际数据；推荐文件为 `data/nma_figure_table_spec_template.json` 和 `figures/NMA_FIGURE_TABLE_SPECIFICATION_TEMPLATE.md`。至少要填入：
+
+```text
+PROJECT_ID, TITLE, SEARCH_DATE, DATABASES, REGISTRATION_ID_OR_NONE,
+POPULATION, NODE_SET, PRIMARY_OUTCOME, EFFECT_MEASURE,
+DB_TOTAL, DUPLICATES, AFTER_DEDUP, SCREENED, TITLE_ABSTRACT_EXCLUDED,
+REPORTS_SOUGHT, REPORTS_NOT_RETRIEVED, REPORTS_ASSESSED,
+FULL_TEXT_EXCLUSION_REASON_COUNTS, REPORTS_INCLUDED,
+STUDY_REPORT_LINKS, OUTCOME_HORIZONS, SOURCE_COORDINATES
+```
+
+每个效应量必须保留 study ID、arm-level randomized denominator、事件数/均值和标准差、结局定义、时间窗、效应尺度、CI/CrI、原始来源页/表/坐标。`NR` 只能表示源文献未报告，不能填入推测值。
+
+#### 1.16.4 网络、Bayesian 与确定性门禁
+
+1. 网络图只能绘制真实直接随机比较；严禁为了美观补画不存在的三角形或闭环。
+2. 断开网络必须按 component 分开分析和展示，不得跨组件排名、计算 SUCRA/P-score 或写成共同治疗层级。
+3. 星形网络没有闭环时，node-splitting、design-by-treatment 或其他 inconsistency 检验应标记 `not assessable`，不能写成“无不一致”。
+4. Bayesian 分层/类别模型只有在以下门禁全部满足时才可拟合：至少足够的独立试验；共同比较或可辩护桥接；人群、结局定义和时间窗可交换；事件信息足以估计层级异质性和研究基线。任一门禁失败时，输出 `omitted - identifiability gates not met`，保留直接效应和预设频率学敏感性分析。
+5. Bayesian 模型卡必须记录 likelihood、effect scale、study baseline、class hierarchy、tau 参数化和先验、链数/迭代/warmup、R-hat、bulk/tail ESS、divergences、posterior predictive checks、剂量转换、MCID、排名输出和分层决策。
+6. 低事件、零事件、稀疏比较、单研究比较和 secondary-source 数据必须在图题、表格和统计方法中明确标注；不能用连续性校正制造虚假的精确性。
+
+#### 1.16.5 固定表格序列
+
+- Table 1：study characteristics；独立随机研究一行，嵌套报告用 `parent_study_id` 关联。
+- Table 2：node and outcome definitions；节点、剂量/强度、比较组、结局、时间窗、资格状态和来源坐标。
+- Table 3：relative effects and certainty；对比、k、效应、95% CI/CrI、prediction interval、CINeMA 域和总确定性。
+- Table 4：analysis diagnostics；k、tau/tau²、异质性、不一致性可估计性、R-hat、ESS、divergence 和敏感性结论。
+- Supplementary S1–S7：精确检索式、全文排除表、arm-level 提取、RoB 2、模型与诊断、敏感性/亚组、CINeMA 或其他确定性评估。
+
+Word 表格必须注入 `<w:tblHeader/>` 和 `<w:cantSplit/>`；每行保留 source/provenance 列。图表 manifest 必须记录数据源、脚本、输出 stem、版本、SHA-256 和验证状态。
+
+#### 1.16.6 可复用执行命令与验收清单
+
+固定 Figure 1 布局只更换 JSON 数据：
+
+```powershell
+python -X utf8 .\redraw_latest_figures.py --figure1-data .\data\figure1_prisma_<DATE>.json
+```
+
+进入下一阶段前必须 PASS：数据库求和、去重闭环、筛选闭环、全文排除加和、other-methods 分支隔离、网络直接边真实性、断开组件不排名、Bayesian 可识别性门禁、SVG live text/no image、PDF Type 42、PNG 600 dpi、DOCX 表格 XML、PPTX/XLSX/ZIP 同步及 SHA-256 记录。任何一项 FAIL 都必须停止交付并回溯修正。
 
 ---
 
 
+
+
+### 1.17 机构浏览器会话复用、全量检索不截断、分批落盘与带溯源统一筛选表执行规范 (Full Corpus Landing, Institutional Session Reuse & Provenance Screening Protocol)
+
+1. **拒绝相关性截断原则（Zero Relevance Truncation Rule）**：
+   - 定量系统评价与 Meta 分析在检索四大核心数据库（PubMed, Embase, Web of Science, Cochrane Library）时，必须**全量获取并落盘所有命中文献记录**，绝对严禁采取“按相关性前 20/50 条截断”的偷懒行为。
+   - 检索原生命中数（$N_{\text{hits}}$）必须 $100\%$ 录入《检索流量守恒审计表》（Search Flow Conservation Audit Ledger）。
+2. **浏览器机构用户登录状态复用规范（Browser Institutional Session Reuse Protocol）**：
+   - 针对 Embase、Web of Science、Cochrane Library 等商业学术数据库的机构权限访问，智能体通过两种方式复用真实机构会话：
+     * **方式 A（直连当前 Chrome）**：以 `--remote-debugging-port=9222` 启动日常 Chrome，智能体直接挂接（Attach）到当前已有会话；
+     * **方式 B（持久化 Profile）**：使用持久化用户数据目录，保留本地 Cookies、Session 与 LocalStorage。
+   - 执行检索或批量导出前，智能体自动运行 DOM 探针检测 `Access provided by [Institution]` 机构认证状态；若会话过期，安全挂起等待用户在浏览器中完成 SSO/VPN 认证后自动无缝续导，绝不索取明文账号密码。
+3. **分批落盘与多格式智能解析规范（Multi-Batch Landing & Parsing Protocol）**：
+   - 针对商业库单次导出上限（Embase 500条/批，WoS 500~1000条/批），落盘至 `raw_exports/{database}/` 目录；
+   - 自动解析 PubMed `.nbib`、Embase/Cochrane `.ris`、WoS `.txt`/`.ciw`、Cochrane `.csv`，校验落盘记录总数与数据库原生命中数绝对相等。
+4. **带溯源多标签去重规范（Multi-Source Provenance Deduplication Protocol）**：
+   - 去重采用三级比对（DOI 精确匹配 -> PMID 精确匹配 -> 规范化 Title + 出版年份比对）；
+   - **严禁物理丢弃来源身份**：重复合并时必须完整保留各库复合来源标签与原生唯一编码（`sources: ["PubMed", "Embase", "Web of Science"]`，`pmid`, `embase_pui`, `wos_uid`, `cochrane_id`）。
+5. **两阶段统一筛选主表与闭环守恒规范（Two-Stage Master Screening Table Protocol）**：
+   - 自动生成带数据验证下拉菜单的 `screening/master_screening_table.xlsx`；
+   - **阶段一初筛（TiAb Screening）**：记录题名摘要排除项与临床原因；
+   - **阶段二复筛（Full-Text Screening）**：记录全文获取状态，复筛排除**必须严格按照 5 大标准分类归因**：
+     * `Wrong Population`（非目标人群）
+     * `Wrong Intervention`（非目标干预）
+     * `No Control Group`（缺乏合规对照）
+     * `Ineligible Study Design`（非合规研究设计，如动物/回顾性/会议摘要）
+     * `Duplicate Cohort`（同一临床试验重复发表）
+   - 严格约束 PRISMA 流量闭环损耗 $L \equiv 0$：
+     $$L = N_{\text{total}} - (N_{\text{duplicates}} + N_{\text{tiab\_excluded}} + N_{\text{not\_retrieved}} + N_{\text{fulltext\_excluded}} + N_{\text{included}}) \equiv 0$$
+
+---
 
 ## 2. 核心质控生命线：全流程五级强制验证与证据可溯源铁律 (The Mandatory 5-Tier Verification & Traceability Protocol)
 
@@ -450,33 +582,3 @@ def apply_table_engineering_rules(table):
   - 脚本与输出文本是否强制 UTF-8？是否存在 `?`、乱码或破折号异常？
 - [ ] **6 大格式完整性**：
   - PNG、SVG、PDF、DOCX、PPTX、XLSX 以及 Audit Report 是否全部在本地磁盘生成就绪？
-
-
-
-### 1.16 机构浏览器会话复用、全量检索不截断、分批落盘与带溯源统一筛选表执行规范 (Full Corpus Landing, Institutional Session Reuse & Provenance Screening Protocol)
-
-1. **拒绝相关性截断原则（Zero Relevance Truncation Rule）**：
-   - 定量系统评价与 Meta 分析在检索四大核心数据库（PubMed, Embase, Web of Science, Cochrane Library）时，必须**全量获取并落盘所有命中文献记录**，绝对严禁采取“按相关性前 20/50 条截断”的偷懒行为。
-   - 检索原生命中数（$N_{\text{hits}}$）必须 $100\%$ 录入《检索流量守恒审计表》（Search Flow Conservation Audit Ledger）。
-2. **浏览器机构用户登录状态复用规范（Browser Institutional Session Reuse Protocol）**：
-   - 针对 Embase、Web of Science、Cochrane Library 等商业学术数据库的机构权限访问，智能体通过两种方式复用真实机构会话：
-     * **方式 A（直连当前 Chrome）**：以 `--remote-debugging-port=9222` 启动日常 Chrome，智能体直接挂接（Attach）到当前已有会话；
-     * **方式 B（持久化 Profile）**：使用持久化用户数据目录，保留本地 Cookies、Session 与 LocalStorage。
-   - 执行检索或批量导出前，智能体自动运行 DOM 探针检测 `Access provided by [Institution]` 机构认证状态；若会话过期，安全挂起等待用户在浏览器中完成 SSO/VPN 认证后自动无缝续导，绝不索取明文账号密码。
-3. **分批落盘与多格式智能解析规范（Multi-Batch Landing & Parsing Protocol）**：
-   - 针对商业库单次导出上限（Embase 500条/批，WoS 500~1000条/批），落盘至 `raw_exports/{database}/` 目录；
-   - 自动解析 PubMed `.nbib`、Embase/Cochrane `.ris`、WoS `.txt`/`.ciw`、Cochrane `.csv`，校验落盘记录总数与数据库原生命中数绝对相等。
-4. **带溯源多标签去重规范（Multi-Source Provenance Deduplication Protocol）**：
-   - 去重采用三级比对（DOI 精确匹配 -> PMID 精确匹配 -> 规范化 Title + 出版年份比对）；
-   - **严禁物理丢弃来源身份**：重复合并时必须完整保留各库复合来源标签与原生唯一编码（`sources: ["PubMed", "Embase", "Web of Science"]`，`pmid`, `embase_pui`, `wos_uid`, `cochrane_id`）。
-5. **两阶段统一筛选主表与闭环守恒规范（Two-Stage Master Screening Table Protocol）**：
-   - 自动生成带数据验证下拉菜单的 `screening/master_screening_table.xlsx`；
-   - **阶段一初筛（TiAb Screening）**：记录题名摘要排除项与临床原因；
-   - **阶段二复筛（Full-Text Screening）**：记录全文获取状态，复筛排除**必须严格按照 5 大标准分类归因**：
-     * `Wrong Population`（非目标人群）
-     * `Wrong Intervention`（非目标干预）
-     * `No Control Group`（缺乏合规对照）
-     * `Ineligible Study Design`（非合规研究设计，如动物/回顾性/会议摘要）
-     * `Duplicate Cohort`（同一临床试验重复发表）
-   - 严格约束 PRISMA 流量闭环损耗 $L \equiv 0$：
-     $$L = N_{\text{total}} - (N_{\text{duplicates}} + N_{\text{tiab\_excluded}} + N_{\text{not\_retrieved}} + N_{\text{fulltext\_excluded}} + N_{\text{included}}) \equiv 0$$
