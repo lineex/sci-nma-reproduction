@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "study_report_map_sha256": "STUDY_REPORT_MAP_SHA256",
+  "full_text_retrieval_manifest_sha256": "FULL_TEXT_RETRIEVAL_MANIFEST_SHA256",
+  "records": [
+    {
+      "study_id": "STUDY_ID",
+      "report_id": "REPORT_ID",
+      "eligibility_status": "included",
+      "full_text_review_status": "complete_after_adjudication",
+      "reviewer_decisions": [
+        {"reviewer_id": "FULLTEXT_REVIEWER_A", "decision": "include"},
+        {"reviewer_id": "FULLTEXT_REVIEWER_B", "decision": "include"}
+      ],
+      "adjudicator_id": null,
+      "exclusion_reason": null,
+      "source_locator": null
+    }
+  ]
+}

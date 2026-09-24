@@ -6,7 +6,11 @@ Provides subcommands: init, search, ingest, screen-check, session-check, synthes
 import sys
 import os
 import json
+import asyncio
 import argparse
+import uuid
+from importlib.resources import files
+from pathlib import Path
 from .core.audit_runner import AuditRunner
 from .workflow.pipeline import SOPPipeline, StepAcceptanceError
 from .databases.query_harmonizer import QueryHarmonizer
@@ -15,6 +19,20 @@ from .databases.deduplicator import ProvenanceDeduplicator
 from .databases.audit_ledger import SearchAuditLedger
 from .databases.screening_ledger import ScreeningLedger
 from .databases.session_manager import BrowserSessionManager, InstitutionalSessionStatus
+from .databases.zotero import ZoteroFullTextBridge, ZoteroLibrary, ZoteroError
+from .databases.zotero_mcp import (
+    CollectionNotFound,
+    MCPToolCallError,
+    ZoteroMCPError,
+    ZoteroMCPReadClient,
+)
+from .workflow.stage_ledger import AgentStageLedger, StageLedgerError, STAGE_IDS
+from .workflow.manual_fulltext_queue import (
+    ManualFullTextQueueError,
+    build_manual_fulltext_queue,
+    confirm_zotero_attachment,
+    validate_manual_fulltext_queue_file,
+)
 from .meta_engine.pairwise import PairwiseMetaAnalysis
 
 
@@ -51,6 +69,123 @@ def main():
     screen_parser.add_argument("project_dir", help="Path to project directory")
     screen_parser.add_argument("--table", help="Path to master screening Excel workbook (default: <project>/screening/master_screening_table.xlsx)")
 
+    # Command: Zotero full-text bridge
+    zotero_parser = subparsers.add_parser(
+        "zotero-fulltext",
+        help="Read a Zotero collection, archive attachments, extract text, and write a provenance manifest",
+    )
+    zotero_parser.add_argument("--project", required=True, help="Review project directory")
+    zotero_parser.add_argument("--source", required=True, help="Zotero data directory or Zotero JSON export")
+    zotero_parser.add_argument("--collection", help="Zotero collection name, key, or path")
+    zotero_parser.add_argument("--screening-table", help="Optional master screening workbook to update retrieval columns")
+    zotero_parser.add_argument("--no-copy-pdfs", action="store_true", help="Keep original PDFs in Zotero storage")
+    zotero_parser.add_argument("--no-inline-text", action="store_true", help="Keep extracted text in per-item files only")
+
+    # Command: inspect the configured Zotero MCP endpoint without reading library content
+    zotero_mcp_parser = subparsers.add_parser(
+        "zotero-mcp-check",
+        help="Connect to Zotero MCP and list the server's currently advertised tools",
+    )
+    zotero_mcp_parser.add_argument(
+        "--url",
+        default="http://127.0.0.1:23120/mcp",
+        help="Zotero MCP Streamable HTTP endpoint",
+    )
+
+    zotero_mcp_export_parser = subparsers.add_parser(
+        "zotero-mcp-export",
+        help="Export one Zotero MCP collection with raw provenance and extracted text",
+    )
+    zotero_mcp_export_parser.add_argument("--project", required=True, help="Review project directory")
+    zotero_mcp_export_parser.add_argument("--collection", required=True, help="Exact Zotero collection name or key")
+    zotero_mcp_export_parser.add_argument("--match-by", choices=["name", "key"], help="Require an exact collection-name or collection-key match")
+    zotero_mcp_export_parser.add_argument("--page-size", type=int, default=100, help="Requested item page size; server pagination metadata and caps are honored")
+    zotero_mcp_export_parser.add_argument(
+        "--url",
+        default="http://127.0.0.1:23120/mcp",
+        help="Zotero MCP Streamable HTTP endpoint",
+    )
+
+    # Command: manual full-text handoff and confirmation
+    manual_fulltext_parser = subparsers.add_parser(
+        "manual-fulltext",
+        help="Build, validate, or confirm a report-level manual full-text retrieval queue",
+    )
+    manual_fulltext_actions = manual_fulltext_parser.add_subparsers(dest="manual_fulltext_action", required=True)
+    manual_queue_build = manual_fulltext_actions.add_parser("queue", help="Build and display a queue from the current retrieval manifest")
+    manual_queue_build.add_argument("--project", required=True)
+    manual_queue_build.add_argument("--manifest", required=True, help="Full-text retrieval manifest path")
+    manual_queue_build.add_argument("--study-report-map", required=True, help="Approved study/report map path")
+    manual_queue_build.add_argument("--screening-manifest", required=True, help="Approved title/abstract screening manifest path")
+    manual_queue_build.add_argument("--output", help="Queue output path inside the review project")
+
+    manual_queue_check = manual_fulltext_actions.add_parser("check", help="Validate queue coverage and its input hashes")
+    manual_queue_check.add_argument("--project", required=True)
+    manual_queue_check.add_argument("--manifest", required=True)
+    manual_queue_check.add_argument("--queue", required=True)
+    manual_queue_check.add_argument("--study-report-map", required=True)
+    manual_queue_check.add_argument("--screening-manifest", required=True)
+
+    manual_queue_confirm = manual_fulltext_actions.add_parser(
+        "confirm", help="Re-read an exact Zotero item/attachment and resume full-text retrieval"
+    )
+    manual_queue_confirm.add_argument("--project", required=True)
+    manual_queue_confirm.add_argument("--manifest", required=True, help="Current retrieval manifest path")
+    manual_queue_confirm.add_argument("--queue", required=True, help="Queue bound to the current retrieval manifest")
+    manual_queue_confirm.add_argument("--study-report-map", required=True, help="Approved study/report map path")
+    manual_queue_confirm.add_argument("--screening-manifest", required=True, help="Approved title/abstract screening manifest path")
+    manual_queue_confirm.add_argument("--study-id", required=True)
+    manual_queue_confirm.add_argument("--report-id", required=True)
+    manual_queue_confirm.add_argument("--item-key", required=True, help="Exact Zotero parent item key")
+    manual_queue_confirm.add_argument("--attachment-key", required=True, help="Exact attached Zotero attachment key")
+    manual_queue_confirm.add_argument(
+        "--attachment-file", required=True,
+        help="User-supplied local copy; its byte identity with the Zotero attachment is recorded as unverified",
+    )
+    manual_queue_confirm.add_argument("--actor", required=True, help="Confirming user's audit identifier")
+    manual_queue_confirm.add_argument("--identity-evidence", required=True, help="Brief report-to-item match attestation")
+    manual_queue_confirm.add_argument("--agent", required=True, help="Executor agent taking the resumed retrieval stage")
+    manual_queue_confirm.add_argument("--agent-session", required=True, help="New orchestration session ID")
+    manual_queue_confirm.add_argument("--url", default="http://127.0.0.1:23120/mcp", help="Zotero MCP Streamable HTTP endpoint")
+
+    # Command: review-stage (multi-agent workflow gates)
+    stage_parser = subparsers.add_parser(
+        "review-stage",
+        help="Manage the new-review agent stage ledger and two-reviewer release gates",
+    )
+    stage_actions = stage_parser.add_subparsers(dest="stage_action", required=True)
+    stage_init = stage_actions.add_parser("init", help="Create the agent stage ledger")
+    stage_init.add_argument("--project", required=True)
+    stage_init.add_argument("--overwrite", action="store_true")
+    stage_status = stage_actions.add_parser("status", help="Show stage status and ledger integrity")
+    stage_status.add_argument("--project", required=True)
+    stage_start = stage_actions.add_parser("start", help="Start or resume one stage")
+    stage_start.add_argument("--project", required=True)
+    stage_start.add_argument("--stage", choices=STAGE_IDS, required=True)
+    stage_start.add_argument("--agent", required=True)
+    stage_start.add_argument("--agent-session", required=True, help="Unique orchestration session ID for this executor run")
+    stage_start.add_argument("--rerun", action="store_true", help="Invalidate this stage and all downstream approvals")
+    stage_resume = stage_actions.add_parser("resume", help="Resume or hand off an interrupted stage with ledger history preserved")
+    stage_resume.add_argument("--project", required=True)
+    stage_resume.add_argument("--stage", choices=STAGE_IDS, required=True)
+    stage_resume.add_argument("--agent", required=True)
+    stage_resume.add_argument("--agent-session", required=True)
+    stage_submit = stage_actions.add_parser("submit", help="Submit stage artifacts for independent review")
+    stage_submit.add_argument("--project", required=True)
+    stage_submit.add_argument("--stage", choices=STAGE_IDS, required=True)
+    stage_submit.add_argument("--agent", required=True)
+    stage_submit.add_argument("--agent-session", required=True, help="Must match the session ID used to start this stage")
+    stage_submit.add_argument("--artifact", action="append", required=True, help="Artifact path inside project; repeat as needed")
+    stage_submit.add_argument("--summary", required=True)
+    stage_review = stage_actions.add_parser("review", help="Record an independent approve/revise vote")
+    stage_review.add_argument("--project", required=True)
+    stage_review.add_argument("--stage", choices=STAGE_IDS, required=True)
+    stage_review.add_argument("--reviewer", required=True)
+    stage_review.add_argument("--reviewer-session", required=True, help="Unique orchestration session ID for this independent reviewer")
+    stage_review.add_argument("--verdict", choices=["approve", "revise"], required=True)
+    stage_review.add_argument("--report", required=True, help="Review report path inside project")
+    stage_review.add_argument("--findings", required=True, help="Evidence-based findings supporting the verdict")
+
     # Command: audit
     audit_parser = subparsers.add_parser("audit", help="Run 5-Tier Verification Gates on project directory")
     audit_parser.add_argument("project_dir", help="Path to project directory")
@@ -83,15 +218,242 @@ def main():
         subdirs = [
             "search_strategies", "data", "figures",
             "editable_files/vector_svg", "editable_files/vector_pdf", "editable_files/office_docs",
-            "verification", "original_materials",
+            "verification", "verification/reviews", "original_materials", "agents",
             "raw_exports/pubmed", "raw_exports/embase", "raw_exports/wos", "raw_exports/cochrane",
             "screening"
         ]
         for s in subdirs:
             os.makedirs(os.path.join(p_dir, s), exist_ok=True)
+        project_path = Path(p_dir).expanduser().resolve()
+        template_targets = {
+            "review_protocol_template.json": "review_protocol.json",
+            "methods_source_log_template.json": "verification/methods_source_log.json",
+            "data_extraction_template.csv": "data/data_extraction_template.csv",
+            "agent_stage_card_template.json": "agents/stage_card_template.json",
+            "nma_figure_table_spec_template.json": "data/nma_figure_table_spec_template.json",
+            "title_abstract_screening_manifest_template.json": "screening/title_abstract_screening_manifest.json",
+            "full_text_retrieval_manifest_template.json": "screening/full_text_retrieval_manifest.json",
+            "full_text_screening_manifest_template.json": "screening/full_text_screening_manifest.json",
+            "fact_status_manifest_template.json": "data/fact_status_manifest.json",
+        }
+        for template_name, relative_target in template_targets.items():
+            target = project_path / relative_target
+            if target.exists():
+                continue
+            resource = files("sci_nma_agent").joinpath("templates", template_name)
+            if resource.is_file():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(resource.read_bytes())
+        if not (project_path / "verification" / AgentStageLedger.FILENAME).exists():
+            AgentStageLedger.initialize(str(project_path))
         print(f"Initialized review project scaffolding in '{p_dir}'.")
         print("  - Raw export directories ready in: raw_exports/{pubmed, embase, wos, cochrane}")
         print("  - Screening directory ready in: screening/")
+        print("  - New-review protocol, extraction form, and gated agent ledger initialized.")
+
+    elif args.command == "zotero-fulltext":
+        try:
+            library = ZoteroLibrary.from_source(args.source)
+            bridge = ZoteroFullTextBridge(library)
+            result = bridge.materialize(
+                project_dir=args.project,
+                collection=args.collection,
+                copy_pdfs=not args.no_copy_pdfs,
+                inline_text=not args.no_inline_text,
+            )
+            if args.screening_table:
+                result["screening_update"] = bridge.update_screening_workbook(
+                    args.screening_table, result["manifest_path"]
+                )
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            sys.exit(0 if not result.get("missing_fulltext") else 2)
+        except (ZoteroError, OSError, ValueError) as exc:
+            print(f"Zotero full-text import failed: {exc}")
+            sys.exit(1)
+
+    elif args.command == "zotero-mcp-check":
+        async def inspect_zotero_mcp():
+            async with ZoteroMCPReadClient.connect(args.url) as client:
+                return [tool.as_dict() for tool in client.tools]
+
+        try:
+            tools = asyncio.run(inspect_zotero_mcp())
+            print(json.dumps({"endpoint": args.url, "tools": tools}, ensure_ascii=False, indent=2))
+            if not tools:
+                sys.exit(2)
+        except Exception as exc:
+            print(f"Zotero MCP check failed: {exc}")
+            sys.exit(1)
+
+    elif args.command == "zotero-mcp-export":
+        async def export_zotero_mcp():
+            async with ZoteroMCPReadClient.connect(args.url) as client:
+                return await client.export_collection(
+                    args.project,
+                    args.collection,
+                    page_size=args.page_size,
+                    match_by=args.match_by,
+                )
+
+        try:
+            result = asyncio.run(export_zotero_mcp())
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            sys.exit(0 if result.get("pagination_status") == "complete" else 2)
+        except MCPToolCallError as exc:
+            print(f"Zotero MCP server tool error: {exc}")
+            sys.exit(1)
+        except CollectionNotFound as exc:
+            print(f"Zotero MCP collection resolution failed: {exc}")
+            sys.exit(2)
+        except (ZoteroMCPError, OSError, ValueError) as exc:
+            print(f"Zotero MCP export failed: {exc}")
+            sys.exit(1)
+
+    elif args.command == "manual-fulltext":
+        try:
+            if args.manual_fulltext_action == "queue":
+                project = Path(args.project).expanduser().resolve()
+                stage = AgentStageLedger(str(project)).status()["stages"]["fulltext_retrieval"]
+                run_number = stage["run_count"] if stage["status"] == "in_progress" else stage["run_count"] + 1
+                default_output = (
+                    Path("screening") / "retrieval_attempts" / f"run-{max(1, run_number):04d}"
+                    / "manual_fulltext_queue.json"
+                )
+                result = build_manual_fulltext_queue(
+                    str(project),
+                    args.manifest,
+                    args.study_report_map,
+                    args.screening_manifest,
+                    output_path=args.output or str(default_output),
+                )
+                queue_data = json.loads(Path(result["queue_path"]).read_text(encoding="utf-8"))
+                result["records"] = [
+                    {
+                        key: row.get(key)
+                        for key in (
+                            "queue_id", "study_id", "report_id", "queue_status",
+                            "retrieval_status", "unresolved_reason", "expected_identity",
+                            "source_route_attempts", "instructions",
+                        )
+                    }
+                    for row in queue_data.get("records", [])
+                    if isinstance(row, dict)
+                ]
+                print(json.dumps(result, ensure_ascii=False, indent=2))
+            elif args.manual_fulltext_action == "check":
+                project = Path(args.project).expanduser().resolve()
+                result = validate_manual_fulltext_queue_file(
+                    str((project / args.queue).resolve() if not Path(args.queue).is_absolute() else Path(args.queue).resolve()),
+                    str((project / args.manifest).resolve() if not Path(args.manifest).is_absolute() else Path(args.manifest).resolve()),
+                    str((project / args.study_report_map).resolve() if not Path(args.study_report_map).is_absolute() else Path(args.study_report_map).resolve()),
+                    str((project / args.screening_manifest).resolve() if not Path(args.screening_manifest).is_absolute() else Path(args.screening_manifest).resolve()),
+                )
+                print(json.dumps({"valid": not result, "errors": result}, ensure_ascii=False, indent=2))
+                if result:
+                    sys.exit(1)
+            else:
+                project = Path(args.project).expanduser().resolve()
+                controller = AgentStageLedger(str(project))
+                snapshot = controller.status()
+                controller.validate_resume("fulltext_retrieval", args.agent, args.agent_session)
+                retrieval_stage = snapshot["stages"]["fulltext_retrieval"]
+                current_status = retrieval_stage["status"]
+                expected_run = retrieval_stage["run_count"] if current_status == "in_progress" else retrieval_stage["run_count"] + 1
+                expected_run = max(1, expected_run)
+                version_id = uuid.uuid4().hex[:12]
+                run_dir = (
+                    Path("screening") / "retrieval_attempts" / f"run-{expected_run:04d}"
+                    / f"resume-{version_id}"
+                )
+
+                async def confirm_manual_attachment():
+                    async with ZoteroMCPReadClient.connect(args.url) as client:
+                        return await confirm_zotero_attachment(
+                            project_dir=str(project),
+                            retrieval_manifest_path=args.manifest,
+                            queue_path=args.queue,
+                            study_id=args.study_id,
+                            report_id=args.report_id,
+                            item_key=args.item_key,
+                            attachment_key=args.attachment_key,
+                            actor=args.actor,
+                            identity_evidence=args.identity_evidence,
+                            attachment_file=args.attachment_file,
+                            client=client,
+                            study_report_map_path=args.study_report_map,
+                            screening_manifest_path=args.screening_manifest,
+                            output_manifest_path=str(run_dir / "full_text_retrieval_manifest.json"),
+                            output_queue_path=str(run_dir / "manual_fulltext_queue.json"),
+                            expected_run=expected_run,
+                        )
+
+                result = asyncio.run(confirm_manual_attachment())
+                try:
+                    resumed = controller.resume("fulltext_retrieval", args.agent, args.agent_session)
+                except StageLedgerError:
+                    for key in (
+                        "retrieval_manifest_path", "queue_path", "local_file_path", "content_path"
+                    ):
+                        output = result.get(key)
+                        if not isinstance(output, str) or not output:
+                            continue
+                        output_path = Path(output).expanduser()
+                        output_path = (project / output_path).resolve() if not output_path.is_absolute() else output_path.resolve()
+                        try:
+                            output_path.relative_to(project)
+                        except ValueError:
+                            continue
+                        output_path.unlink(missing_ok=True)
+                    raise
+                result["stage_status"] = resumed["stages"]["fulltext_retrieval"]["status"]
+                result["stage_run"] = resumed["stages"]["fulltext_retrieval"]["run_count"]
+                result["next_action"] = (
+                    "Continue full-text retrieval from the versioned manifest; submit the manifest and queue "
+                    "for two independent reviews before dependent stages proceed."
+                )
+                print(json.dumps(result, ensure_ascii=False, indent=2))
+        except (ManualFullTextQueueError, StageLedgerError, ZoteroMCPError, OSError, ValueError) as exc:
+            print(f"Manual full-text operation failed: {exc}")
+            sys.exit(1)
+
+    elif args.command == "review-stage":
+        try:
+            if args.stage_action == "init":
+                ledger = AgentStageLedger.initialize(args.project, overwrite=args.overwrite)
+            else:
+                controller = AgentStageLedger(args.project)
+                if args.stage_action == "status":
+                    ledger = controller.status()
+                elif args.stage_action == "start":
+                    ledger = controller.start(args.stage, args.agent, args.agent_session, rerun=args.rerun)
+                elif args.stage_action == "resume":
+                    ledger = controller.resume(args.stage, args.agent, args.agent_session)
+                elif args.stage_action == "submit":
+                    ledger = controller.submit(args.stage, args.agent, args.agent_session, args.artifact, args.summary)
+                else:
+                    ledger = controller.review(
+                        args.stage, args.reviewer, args.reviewer_session, args.verdict, args.report, args.findings
+                    )
+            if args.stage_action == "status":
+                summary = {
+                    "integrity_valid": ledger.get("integrity_valid"),
+                    "evidence_integrity_valid": ledger.get("evidence_integrity_valid"),
+                    "current_stage": ledger.get("current_stage"),
+                    "stages": {key: value["status"] for key, value in ledger["stages"].items()},
+                }
+                print(json.dumps(summary, ensure_ascii=False, indent=2))
+                if not summary["integrity_valid"] or not summary["evidence_integrity_valid"]:
+                    sys.exit(1)
+            else:
+                stage_id = getattr(args, "stage", None)
+                print(json.dumps({
+                    "ledger": str(Path(args.project).expanduser().resolve() / "verification" / AgentStageLedger.FILENAME),
+                    "stage": stage_id,
+                    "status": ledger["stages"].get(stage_id, {}).get("status") if stage_id else "initialized",
+                }, ensure_ascii=False, indent=2))
+        except (StageLedgerError, OSError, ValueError) as exc:
+            print(f"Stage gate rejected operation: {exc}")
+            sys.exit(1)
 
     elif args.command == "session-check":
         mgr = BrowserSessionManager(args.url)

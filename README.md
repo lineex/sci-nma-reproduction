@@ -214,6 +214,19 @@ The framework strictly enforces the **Anti-Shortcut Protocol**: Every single pha
 
 ## 中文说明
 
+### 新建循证综述与 Meta 分析
+
+新研究问题走独立的协议优先工作流，不加载发表研究复现/校准模块。入口技能为
+[`skills/sci-nma-reproduction/SKILL.md`](skills/sci-nma-reproduction/SKILL.md)，方法和阶段规范见
+[`docs/EBM_SYSTEMATIC_REVIEW_WORKFLOW.md`](docs/EBM_SYSTEMATIC_REVIEW_WORKFLOW.md)、
+[`docs/COCHRANE_AGENT_REQUIREMENTS.md`](docs/COCHRANE_AGENT_REQUIREMENTS.md) 和
+[`agents/STAGE_METHOD_MATRIX.md`](agents/STAGE_METHOD_MATRIX.md)。
+
+- 按 Cochrane Handbook 与项目方案依次通过 11 个门：方案、检索、去重关联、题录初筛、全文获取、全文资格、数据提取、偏倚风险、综合、证据确定性、报告。每门由执行 agent 提交可审查工件，两个独立 reviewer 均通过后才能进入下一门；上游文件哈希变化会阻止旧审批继续生效。
+- Zotero 优先使用 [`cookjohn/zotero-mcp`](https://github.com/cookjohn/zotero-mcp)：读取指定 collection、核对条目和附件、提取全文。安装 MCP 可选依赖并配置 Zotero MCP endpoint 后，可使用直连适配器；无 MCP endpoint 时可使用只读 Zotero 本地数据库/JSON 导出适配器。
+- 全文获取不等于事实缺失。不可获取、附件待确认、全文待审、报告内未报告、所有关联来源均未报告、全文审阅后仍无法判断分别记录；未获取报告进入逐条人工获取队列，用户确认正确的 Zotero 条目/附件后，回到同一阶段续跑。相关状态由阶段账本校验，来源关联图谱通过 SHA-256 固定。
+- 新项目沿用既有图表合同；新流程不会自行改变图表外观。已发表研究的复现及校准只在用户明确提出复现任务时加载。
+
 ### 强制开源 NMA 图表与 Figure 1 固定范式（v2026-09-21 最新版）
 
 与顶级医学期刊（*Critical Care* 2026, doi:10.1186/s13054-026-06185-5 与 *BMJ* 2026;394:e100561）严格对齐：

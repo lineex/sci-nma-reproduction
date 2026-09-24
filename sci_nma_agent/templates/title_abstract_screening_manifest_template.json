@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "study_report_map_sha256": "STUDY_REPORT_MAP_SHA256",
+  "records": [
+    {
+      "study_id": "STUDY_ID",
+      "report_id": "REPORT_ID",
+      "report_identity": {
+        "doi": "",
+        "pmid": "",
+        "title": "",
+        "year": ""
+      },
+      "reviewer_decisions": [
+        {"reviewer_id": "SCREENING_REVIEWER_A", "decision": "include_for_full_text"},
+        {"reviewer_id": "SCREENING_REVIEWER_B", "decision": "include_for_full_text"}
+      ],
+      "final_decision": "include_for_full_text",
+      "adjudicator_id": null
+    }
+  ]
+}

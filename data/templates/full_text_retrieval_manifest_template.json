@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "study_report_map_sha256": "STUDY_REPORT_MAP_SHA256",
+  "title_abstract_screening_manifest_sha256": "TITLE_ABSTRACT_SCREENING_MANIFEST_SHA256",
+  "records": [
+    {
+      "study_id": "STUDY_ID",
+      "report_id": "REPORT_ID",
+      "retrieval_status": "manual_confirmed",
+      "full_text_review_status": "not_started",
+      "fact_status": "pending_full_text_review",
+      "zotero_collection_key": "ZOTERO_COLLECTION_KEY",
+      "zotero_item_key": "ZOTERO_ITEM_KEY",
+      "attachment_key": "ZOTERO_ATTACHMENT_KEY",
+      "local_file_sha256": "LOCAL_FILE_SHA256",
+      "local_file_name": "SOURCE_FILE_NAME",
+      "local_file_path": "original_materials/manual_fulltext/run-0001/STUDY_REPORT_local_copy.pdf",
+      "local_file_relation_status": "unverified_user_supplied",
+      "content_sha256": "EXTRACTED_CONTENT_SHA256",
+      "content_file_sha256": "EXTRACTED_TEXT_FILE_SHA256",
+      "content_path": "original_materials/manual_fulltext/run-0001/STUDY_REPORT.txt",
+      "identity_match_status": "unique_match",
+      "route_attempts": [
+        {"route": "zotero_mcp", "status": "attachment_confirmed", "attempted_at": "ISO8601_TIMESTAMP"}
+      ],
+      "manual_confirmation": {
+        "actor": "CONFIRMING_USER",
+        "confirmed_at": "ISO8601_TIMESTAMP",
+        "zotero_item_key": "ZOTERO_ITEM_KEY",
+        "attachment_key": "ZOTERO_ATTACHMENT_KEY",
+        "local_file_sha256": "LOCAL_FILE_SHA256",
+        "local_file_name": "SOURCE_FILE_NAME",
+        "local_file_path": "original_materials/manual_fulltext/run-0001/STUDY_REPORT_local_copy.pdf",
+        "local_file_relation_status": "unverified_user_supplied",
+        "item_details_call": {
+          "provenance": {"source": "zotero_mcp", "tool_name": "TOOL_NAME", "arguments": {"item_key": "ZOTERO_ITEM_KEY"}, "called_at": "ISO8601_TIMESTAMP"},
+          "raw_response": {},
+          "raw_response_sha256": "ITEM_DETAILS_RESPONSE_SHA256"
+        },
+        "content_call": {
+          "provenance": {"source": "zotero_mcp", "tool_name": "TOOL_NAME", "arguments": {"item_key": "ZOTERO_ITEM_KEY", "attachment_key": "ZOTERO_ATTACHMENT_KEY", "mode": "complete"}, "called_at": "ISO8601_TIMESTAMP"},
+          "raw_response": {},
+          "raw_response_sha256": "CONTENT_RESPONSE_SHA256"
+        }
+      }
+    }
+  ]
+}

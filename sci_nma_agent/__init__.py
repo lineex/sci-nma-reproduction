@@ -20,6 +20,14 @@ from .databases.corpus_repository import CanonicalRecord, FormatParsers, CorpusR
 from .databases.deduplicator import ProvenanceDeduplicator
 from .databases.audit_ledger import SearchAuditLedger
 from .databases.screening_ledger import ScreeningLedger
+from .databases.zotero import (
+    ZoteroAttachment,
+    ZoteroError,
+    ZoteroFullTextBridge,
+    ZoteroItem,
+    ZoteroLibrary,
+)
+from .databases.zotero_mcp import ZoteroMCPError, ZoteroMCPReadClient
 
 __all__ = [
     "AuditRunner",
@@ -37,4 +45,11 @@ __all__ = [
     "ProvenanceDeduplicator",
     "SearchAuditLedger",
     "ScreeningLedger",
+    "ZoteroAttachment",
+    "ZoteroError",
+    "ZoteroFullTextBridge",
+    "ZoteroItem",
+    "ZoteroLibrary",
+    "ZoteroMCPError",
+    "ZoteroMCPReadClient",
 ]

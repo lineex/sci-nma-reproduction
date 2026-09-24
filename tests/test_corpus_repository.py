@@ -3,7 +3,7 @@ Unit tests for CorpusRepository, FormatParsers, ProvenanceDeduplicator, and Sear
 """
 
 import os
-import tempfile
+from contextlib import nullcontext
 import pytest
 
 from sci_nma_agent.databases.corpus_repository import CanonicalRecord, FormatParsers, CorpusRepository
@@ -17,8 +17,8 @@ def test_doi_normalization():
     assert FormatParsers.normalize_doi(None) is None
 
 
-def test_format_parsers_and_corpus_scan():
-    with tempfile.TemporaryDirectory() as tmpdir:
+def test_format_parsers_and_corpus_scan(tmp_path):
+    with nullcontext(str(tmp_path)) as tmpdir:
         pubmed_dir = os.path.join(tmpdir, "pubmed")
         embase_dir = os.path.join(tmpdir, "embase")
         wos_dir = os.path.join(tmpdir, "wos")

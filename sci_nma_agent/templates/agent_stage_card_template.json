@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "stage_id": "",
+  "project_title": "",
+  "handbook_scope": "",
+  "objective": "",
+  "agent_role_card_path": "",
+  "approved_protocol_version": "",
+  "inputs": [],
+  "assigned_executor_agent": "",
+  "executor_session_id": "",
+  "required_independent_reviewers": ["REVIEWER_A", "REVIEWER_B"],
+  "required_outputs": [],
+  "acceptance_criteria": [],
+  "review_focus": [],
+  "open_decisions": [],
+  "stop_conditions": [],
+  "artifact_paths": [],
+  "summary": "",
+  "review_reports": [],
+  "gate_status": "pending"
+}

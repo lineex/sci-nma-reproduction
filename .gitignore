@@ -12,6 +12,7 @@ build/
 develop-eggs/
 dist/
 downloads/
+original_materials/manual_fulltext/
 eggs/
 .eggs/
 lib/

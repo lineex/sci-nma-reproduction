@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "source_id": "COCHRANE_CHAPTER_ID",
+      "source_type": "cochrane_handbook",
+      "chapter_id": "chapter-NN",
+      "citation": "Cochrane Handbook for Systematic Reviews of Interventions, Chapter N",
+      "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-XX",
+      "relevant_sections": ["Chapter N, section N.N"],
+      "version_or_update_date": "CHAPTER_VERSION_OR_UPDATE_DATE_OR_NOT_STATED",
+      "accessed_date": "YYYY-MM-DD",
+      "access_status": "verified",
+      "verified_by": "METHODS_REVIEWER",
+      "verification_notes": null
+    },
+    {
+      "source_id": "TUTORIAL_ID",
+      "source_type": "tutorial",
+      "citation": "Zhang X, Cheng B, Zhang Y. A Hands-On Tutorial for Systematic Review and Meta-Analysis With Example Data Set and Codes. JSLHR. 2022. doi:10.1044/2022_JSLHR-21-00607",
+      "url": "https://doi.org/10.1044/2022_JSLHR-21-00607",
+      "relevant_sections": ["Pages X-Y"],
+      "version_or_update_date": "2022",
+      "accessed_date": "YYYY-MM-DD",
+      "access_status": "verified",
+      "verified_by": "METHODS_REVIEWER",
+      "verification_notes": null
+    }
+  ]
+}

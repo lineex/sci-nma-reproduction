@@ -1,0 +1,199 @@
+{
+  "schema_version": 2,
+  "project": {
+    "title": "",
+    "review_type": "systematic_review_with_meta_analysis",
+    "version": "0.1",
+    "lead": "",
+    "created_date": "",
+    "last_updated": ""
+  },
+  "question": {
+    "framework": "PICO",
+    "population": "",
+    "intervention_or_exposure": "",
+    "comparator": "",
+    "clinical_context": "",
+    "objective": ""
+  },
+  "eligibility": {
+    "inclusion_criteria": [],
+    "exclusion_criteria": [],
+    "eligible_study_designs": [],
+    "report_characteristics": {
+      "publication_status": "",
+      "language_policy": "",
+      "date_limits": "",
+      "restriction_rationale": ""
+    },
+    "unit_of_interest": "study",
+    "multiple_reports_linkage_rule": ""
+  },
+  "outcomes": [
+    {
+      "name": "",
+      "role": "primary",
+      "definition": "",
+      "measurement": "",
+      "time_window": "",
+      "timepoint_selection_rule": "",
+      "measure_selection_rule": "",
+      "preferred_effect_measure": "",
+      "clinical_importance": "",
+      "related_effect_handling": ""
+    }
+  ],
+  "search": {
+    "sources": [],
+    "planned_date_range": "",
+    "planned_search_date": "",
+    "date_last_searched": "",
+    "search_strategies_directory": "search_strategies",
+    "citation_searching": [],
+    "restrictions_and_rationale": "",
+    "search_peer_review_plan": ""
+  },
+  "methods_sources": {
+    "cochrane_chapters_used": [],
+    "chapter_scope_rationale": ""
+  },
+  "selection": {
+    "title_abstract_reviewers": ["SCREENER_A", "SCREENER_B"],
+    "full_text_reviewers": ["SCREENER_A", "SCREENER_B"],
+    "adjudicator": "ADJUDICATOR",
+    "conflict_resolution": "",
+    "full_text_exclusion_reasons": []
+  },
+  "full_text": {
+    "manager": "Zotero",
+    "collection_name": "",
+    "source_mode": "zotero_mcp_first_with_read_only_sqlite_or_json_fallback",
+    "attachment_policy": "",
+    "identity_matching_policy": "",
+    "unavailable_report_policy": "",
+    "ocr_policy": "",
+    "manual_queue_path": "screening/manual_fulltext_queue.xlsx",
+    "manual_acquisition_routes": [
+      "Zotero automatic full-text retrieval",
+      "DOI/PMID search in open-access repositories",
+      "institutional library or publisher access",
+      "interlibrary loan or author contact",
+      "user-managed manual acquisition in Zotero"
+    ],
+    "manual_confirmation_required": true,
+    "manual_confirmation_rule": "For manual acquisition, after attaching the verified report to the matching Zotero item, the user confirms that exact item and attachment in the acquisition queue; the executor then resumes unfinished retrieval work in the same stage without bypassing its review gate. A uniquely matched automatic retrieval does not require this manual action.",
+    "fact_classification_rule": "Record retrieval_status, full_text_review_status, and each report-level fact_status separately. Before a report is retrieved or a manual attachment is confirmed, use not_assessed_pending_full_text and not_started. After retrieval but before completed independent review and adjudication, use pending_full_text_review. Use not_reported_in_reviewed_report only for a retrieved report with documented section/page coverage after completed review and adjudication; this does not establish that the outcome was not measured, that there were zero events, or that the value is zero. Use study-level not_reported_after_all_linked_sources_review only when every report in the approved study_report_map has been retrieved, confirmed, independently reviewed, adjudicated, and documented in linked_source_review_evidence. Use cannot_tell_after_full_text_review for an assessed but unresolved reporting question and give an uncertainty_reason. Retrieval failure, inaccessible text, OCR failure, or an unconfirmed manual attachment never establishes factual absence.",
+    "retrieval_status_vocabulary": [
+      "not_started",
+      "automatic_retrieval_succeeded",
+      "automatic_retrieval_failed",
+      "awaiting_manual_acquisition",
+      "manual_acquired_unconfirmed",
+      "manual_confirmed",
+      "not_retrieved_after_all_routes",
+      "identity_ambiguous",
+      "attachment_ambiguous"
+    ],
+    "full_text_review_status_vocabulary": [
+      "not_started",
+      "pending_independent_review",
+      "review_in_progress",
+      "complete_after_adjudication"
+    ],
+    "fact_status_vocabulary": [
+      "not_assessed_pending_full_text",
+      "pending_full_text_review",
+      "reported",
+      "not_reported_in_reviewed_report",
+      "not_reported_after_all_linked_sources_review",
+      "cannot_tell_after_full_text_review",
+      "not_applicable"
+    ],
+    "required_provenance": [
+      "zotero_item_key",
+      "identity_match_method_and_result",
+      "attachment_key_and_path",
+      "retrieval_status",
+      "retrieval_timestamp",
+      "manual_confirmation_actor_and_timestamp_when_applicable",
+      "attachment_SHA256",
+      "text_extraction_method_and_status",
+      "page_locator_when_available",
+      "full_text_review_status",
+      "fact_status_per_extracted_field"
+    ]
+  },
+  "data_collection": {
+    "form_path": "data/data_extraction_template.csv",
+    "pilot_studies": [],
+    "extractors": ["EXTRACTOR_A", "EXTRACTOR_B"],
+    "independent_verification_rule": "",
+    "pilot_and_training_plan": "",
+    "author_contact_policy": "",
+    "conversion_and_assumption_log": "verification/data_decisions.jsonl"
+  },
+  "risk_of_bias": {
+    "tool_by_design": {},
+    "reviewers": ["ROB_REVIEWER_A", "ROB_REVIEWER_B"],
+    "outcome_level_assessment": true,
+    "disagreement_resolution": ""
+  },
+  "synthesis": {
+    "synthesis_groups": [],
+    "clinical_methodological_compatibility_rule": "",
+    "effect_measures": {},
+    "model_and_estimator": "",
+    "confidence_interval_method": "",
+    "multi_arm_study_rule": "",
+    "multiple_outcome_rule": "",
+    "missing_data_rule": "",
+    "heterogeneity_assessment": [],
+    "subgroups_and_meta_regression": [],
+    "sensitivity_analyses": [],
+    "sensitivity_analysis_rationale": "",
+    "heterogeneity_rationale": "",
+    "subgroups_and_meta_regression_rationale": "",
+    "small_study_effects_plan": "",
+    "software_and_version": "",
+    "network_meta_analysis": {
+      "enabled": false,
+      "not_planned_rationale": "",
+      "intervention_node_definitions": "",
+      "transitivity_effect_modifiers": [],
+      "transitivity_assessment": "",
+      "network_connectivity_and_geometry": "",
+      "incoherence_assessment": "",
+      "model_and_multi_arm_handling": "",
+      "ranking_interpretation": "",
+      "certainty_framework": "",
+      "assumption_failure_plan": ""
+    }
+  },
+  "certainty": {
+    "framework": "GRADE",
+    "critical_outcomes": [],
+    "summary_of_findings_path": "editable_files/office_docs/Summary_of_Findings.xlsx",
+    "downgrade_upgrade_rules": ""
+  },
+  "registration": {
+    "status": "",
+    "registry": "",
+    "registration_id": "",
+    "protocol_url_or_path": "",
+    "not_registered_rationale": "",
+    "amendment_log": "verification/protocol_amendments.jsonl"
+  },
+  "agent_governance": {
+    "independent_reviews_required_per_stage": 2,
+    "executor_reviews_own_stage": false,
+    "gate_ledger": "verification/agent_stage_ledger.json",
+    "role_prompts_directory": "agents/review_roles",
+    "independence_identity_source": "orchestrator_session_id",
+    "human_accountable_lead": ""
+  },
+  "figure_table_contract": {
+    "format_profile": "user_fixed",
+    "contract_path": "data/nma_figure_table_spec_template.json",
+    "change_policy": "Preserve the approved project figure/table format contract unless the project owner explicitly changes it."
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "study_report_map_sha256": "STUDY_REPORT_MAP_SHA256",
+  "full_text_retrieval_manifest_sha256": "FULL_TEXT_RETRIEVAL_MANIFEST_SHA256",
+  "full_text_screening_manifest_sha256": "FULL_TEXT_SCREENING_MANIFEST_SHA256",
+  "facts": [
+    {
+      "study_id": "STUDY_ID",
+      "report_id": "REPORT_ID",
+      "field_id": "OUTCOME_OR_FIELD_ID",
+      "fact_scope": "report",
+      "retrieval_status": "manual_confirmed",
+      "full_text_review_status": "complete_after_adjudication",
+      "fact_status": "reported",
+      "value": "EXTRACTED_VALUE",
+      "source_quote": "VERBATIM_SOURCE_TEXT",
+      "source_locator": "Page, section, table, figure, or supplement locator",
+      "review_coverage": ["Methods pp. X-Y", "Results pp. X-Y", "Supplement Table S1"],
+      "linked_report_ids": [],
+      "linked_source_review_evidence": [],
+      "all_linked_sources_reviewed": false,
+      "uncertainty_reason": null,
+      "not_applicable_reason": null
+    }
+  ]
+}

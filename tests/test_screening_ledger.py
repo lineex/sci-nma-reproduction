@@ -4,7 +4,7 @@ Unit tests for ScreeningLedger and PRISMA Flow Decision Reconciliation.
 
 import os
 import json
-import tempfile
+from contextlib import nullcontext
 import openpyxl
 import pytest
 
@@ -13,8 +13,8 @@ from sci_nma_agent.databases.screening_ledger import ScreeningLedger
 from sci_nma_agent.core.gate1_search_flow import Gate1SearchFlow
 
 
-def test_screening_workbook_generation_and_reconciliation():
-    with tempfile.TemporaryDirectory() as tmpdir:
+def test_screening_workbook_generation_and_reconciliation(tmp_path):
+    with nullcontext(str(tmp_path)) as tmpdir:
         # Create mock unique records
         records = [
             CanonicalRecord(

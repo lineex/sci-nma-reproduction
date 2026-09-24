@@ -1,0 +1,85 @@
+{
+  "template_version": "2026-09-21",
+  "purpose": "Reusable figure and table specification for frequentist NMA and hierarchical Bayesian NMA",
+  "reference_articles": [
+    {
+      "file": "s13054-026-06185-5_reference.pdf",
+      "model": "frequentist random-effects NMA",
+      "doi": "10.1186/s13054-026-06185-5",
+      "figure_pattern": ["PRISMA", "RoB2", "network_plus_forest", "certainty_heatmap"]
+    },
+    {
+      "file": "bmj-2026-100561.full (1).pdf",
+      "model": "hierarchical Bayesian NMA plus dose-response NMA",
+      "doi": "10.1136/bmj-2026-100561",
+      "figure_pattern": ["multi-source PRISMA", "outcome-specific networks", "posterior forest", "dose-response", "diagnostics"]
+    }
+  ],
+  "fill_in": {
+    "project_id": "{{PROJECT_ID}}",
+    "title": "{{TITLE}}",
+    "search_date": "{{YYYY-MM-DD}}",
+    "primary_outcome": "{{PRIMARY_OUTCOME}}",
+    "effect_measure": "{{RR_OR_OR_OR_MD}}",
+    "model_track": "{{FREQUENTIST_NMA_OR_BAYESIAN_HIERARCHICAL_NMA}}",
+    "registration": "{{REGISTRATION_ID_OR_NONE}}"
+  },
+  "mandatory_figures": {
+    "F1": {
+      "type": "PRISMA_2020_two_column",
+      "headers": [
+        "Identification of studies via databases and registers",
+        "Identification of studies via other methods"
+      ],
+      "stage_tabs": ["Identification", "Screening", "Included"],
+      "data_source": "{{PRISMA_JSON}}",
+      "output": ["PNG_600_dpi", "SVG_live_text", "PDF_Type42"]
+    },
+    "F2": {
+      "frequentist": "RoB2_matrix_and_domain_summary",
+      "bayesian": "outcome_specific_network_plots",
+      "data_source": "{{F2_DATA}}"
+    },
+    "F3": {
+      "frequentist": "network_geometry_plus_relative_effect_forest",
+      "bayesian": "posterior_relative_effect_forest",
+      "data_source": "{{F3_DATA}}"
+    },
+    "F4": {
+      "frequentist": "relative_effect_and_CINeMA_certainty_heatmap",
+      "bayesian": "dose_response_or_covariate_effect_plot",
+      "data_source": "{{F4_DATA}}"
+    }
+  },
+  "mandatory_tables": {
+    "T1": "study_characteristics",
+    "T2": "node_and_outcome_definitions",
+    "T3": "relative_effects_and_certainty",
+    "T4": "analysis_diagnostics",
+    "S1": "exact_search_strategies",
+    "S2": "full_text_exclusion_ledger",
+    "S3": "arm_level_extraction",
+    "S4": "RoB2",
+    "S5": "model_specification_and_diagnostics",
+    "S6": "sensitivity_and_subgroup_analyses",
+    "S7": "CINeMA_or_certainty_assessment"
+  },
+  "validation": {
+    "flow_conservation": true,
+    "other_methods_separate": true,
+    "direct_edges_only": true,
+    "disconnected_components_not_ranked": true,
+    "bayesian_identifiability_gates": [
+      "independent_trials",
+      "common_bridge",
+      "harmonized_endpoint_and_horizon",
+      "adequate_event_information"
+    ],
+    "svg_live_text": true,
+    "svg_no_embedded_raster": true,
+    "pdf_type42": true,
+    "png_dpi": 600,
+    "word_tblHeader": true,
+    "word_cantSplit": true
+  }
+}
