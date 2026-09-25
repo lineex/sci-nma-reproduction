@@ -1,6 +1,7 @@
 {
   "schema_version": 2,
   "project": {
+    "id": "",
     "title": "",
     "review_type": "systematic_review_with_meta_analysis",
     "version": "0.1",
@@ -155,6 +156,23 @@
     "subgroups_and_meta_regression_rationale": "",
     "small_study_effects_plan": "",
     "software_and_version": "",
+    "analysis_manifest_path": "verification/analysis_manifest.json",
+    "pairwise_meta_analysis": {
+      "enabled": true,
+      "not_planned_rationale": ""
+    },
+    "software": {
+      "primary_engine": {
+        "name": "",
+        "version": "",
+        "packages": [],
+        "role": ""
+      },
+      "verification_engines": [],
+      "certainty_tools": [],
+      "runtime_lock_paths": [],
+      "random_seed": ""
+    },
     "network_meta_analysis": {
       "enabled": false,
       "not_planned_rationale": "",
@@ -163,6 +181,7 @@
       "transitivity_assessment": "",
       "network_connectivity_and_geometry": "",
       "incoherence_assessment": "",
+      "model_specification": "",
       "model_and_multi_arm_handling": "",
       "ranking_interpretation": "",
       "certainty_framework": "",

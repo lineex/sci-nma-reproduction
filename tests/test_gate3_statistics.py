@@ -7,6 +7,8 @@ import math
 from sci_nma_agent.core.gate3_statistics import Gate3Statistics
 from sci_nma_agent.meta_engine.logit_transform import LogitTransformEngine
 from sci_nma_agent.meta_engine.pairwise import PairwiseMetaAnalysis
+from sci_nma_agent.meta_engine.network_meta import NetworkMetaEngine
+from sci_nma_agent.meta_engine.publication_bias import PublicationBiasEngine
 
 
 def test_logit_transformation_roundtrip():
@@ -36,3 +38,23 @@ def test_pairwise_meta_analysis():
     assert res["pooled_estimate"] < 1.0  # Favors treatment
     assert res["ci_lower"] < res["pooled_estimate"] < res["ci_upper"]
     assert 0.0 <= res["i2_percent"] <= 100.0
+    assert res["engine_role"] == "exploratory_qa"
+    assert res["production_use"] == "not_for_release"
+
+
+def test_gate3_random_effects_is_explicitly_qa_only():
+    result = Gate3Statistics.meta_analysis_random_effects([0.1, 0.2], [0.04, 0.05])
+    assert result["engine_role"] == "exploratory_qa"
+    assert result["production_use"] == "not_for_release"
+
+
+def test_exploratory_nma_rejects_disconnected_treatment_components():
+    trials = [{"study_id": "S1", "t1": "A", "t2": "B", "log_or": -0.2, "se": 0.2}]
+    with pytest.raises(ValueError, match="network is disconnected"):
+        NetworkMetaEngine.calculate_nma(trials, ["A", "B", "C"], reference_treatment="A")
+
+
+def test_small_study_effect_test_is_not_assessed_below_prespecified_threshold():
+    result = PublicationBiasEngine.egger_test([0.1, 0.2, 0.3], [0.04, 0.05, 0.06])
+    assert result["k"] == 3
+    assert "Not assessed" in result["interpretation"]

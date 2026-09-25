@@ -191,7 +191,10 @@ def main():
     audit_parser.add_argument("project_dir", help="Path to project directory")
 
     # Command: synthesize
-    synth_parser = subparsers.add_parser("synthesize", help="Execute pairwise meta-analysis on dataset")
+    synth_parser = subparsers.add_parser(
+        "synthesize",
+        help="Run the bundled exploratory QA calculator; production release requires a locked analysis manifest",
+    )
     synth_parser.add_argument("--data", required=True, help="Path to dataset JSON")
 
     # Command: run-step
@@ -200,12 +203,22 @@ def main():
     step_parser.add_argument("--project", required=True, help="Path to project directory")
     step_parser.add_argument("--pico", help="Path to PICO config")
     step_parser.add_argument("--data", help="Path to dataset")
+    step_parser.add_argument("--production", action="store_true", help="Require locked external production synthesis evidence")
+    step_parser.add_argument(
+        "--production-results",
+        help="Project-relative JSON containing locked pairwise/network production results (required with --production)",
+    )
 
     # Command: run-all
     run_parser = subparsers.add_parser("run-all", help="Execute full 6-stage SOP pipeline with step-by-step acceptance gates")
     run_parser.add_argument("--project", required=True, help="Path to project directory")
     run_parser.add_argument("--pico", help="Path to PICO config (default: <project>/config_pico.json)")
     run_parser.add_argument("--data", help="Path to dataset (default: <project>/data/extraction_dataset.json)")
+    run_parser.add_argument("--production", action="store_true", help="Require locked external production synthesis evidence")
+    run_parser.add_argument(
+        "--production-results",
+        help="Project-relative JSON containing locked pairwise/network production results (required with --production)",
+    )
 
     args = parser.parse_args()
 
@@ -566,7 +579,8 @@ def main():
         with open(args.data, "r", encoding="utf-8") as f:
             data = json.load(f)
         res = PairwiseMetaAnalysis.analyze_binary(data)
-        print("\n--- Meta-Analysis Result ---")
+        print("\n--- Exploratory QA Result (not a production synthesis) ---")
+        print("Production results must come from the protocol-declared locked engine and analysis_manifest.json.")
         print(f"Studies (k): {res['k']}")
         print(f"Pooled OR: {res['pooled_estimate']:.3f} (95% CI: [{res['ci_lower']:.3f}, {res['ci_upper']:.3f}])")
         print(f"Heterogeneity I²: {res['i2_percent']:.1f}%, τ²: {res['tau2']:.4f}, p: {res['p_value']:.4f}")
@@ -591,7 +605,13 @@ def main():
                 with open(data_p, "r", encoding="utf-8") as f:
                     dataset = json.load(f)
                 ma_res = PairwiseMetaAnalysis.analyze_binary(dataset)
-                pipeline.step4_render_figures(flow_data, ma_res, dataset)
+                pipeline.step4_render_figures(
+                    flow_data,
+                    ma_res,
+                    dataset,
+                    production=args.production,
+                    production_results_path=args.production_results,
+                )
             elif args.stage == 5:
                 with open(pico_p, "r", encoding="utf-8") as f:
                     pico_config = json.load(f)
@@ -600,7 +620,15 @@ def main():
                 with open(data_p, "r", encoding="utf-8") as f:
                     dataset = json.load(f)
                 ma_res, nma_res, _ = pipeline.step3_extract_and_synthesize(data_p)
-                pipeline.step5_office_suite(pico_config, flow_data, ma_res, nma_res, dataset)
+                pipeline.step5_office_suite(
+                    pico_config,
+                    flow_data,
+                    ma_res,
+                    nma_res,
+                    dataset,
+                    production=args.production,
+                    production_results_path=args.production_results,
+                )
             elif args.stage == 6:
                 with open(pico_p, "r", encoding="utf-8") as f:
                     pico_config = json.load(f)
@@ -618,7 +646,12 @@ def main():
 
         pipeline = SOPPipeline(p_dir)
         try:
-            res = pipeline.run_all(pico_p, data_p)
+            res = pipeline.run_all(
+                pico_p,
+                data_p,
+                production=args.production,
+                production_results_path=args.production_results,
+            )
             print(f"Pipeline run completed. Overall Passed: {res['overall_passed']}")
             sys.exit(0 if res["overall_passed"] else 1)
         except StepAcceptanceError as e:

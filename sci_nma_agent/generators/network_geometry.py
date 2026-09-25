@@ -16,6 +16,45 @@ class NetworkGeometryGenerator:
     """Generates NMA Network Geometry Plots."""
 
     @classmethod
+    def generate_not_estimable(
+        cls,
+        output_prefix: str,
+        title: str = "Network Meta-analysis",
+        message: str = "Network meta-analysis not planned; no network geometry is estimable.",
+        dpi: int = 600,
+    ) -> Dict[str, str]:
+        """Render the fixed Figure 3 contract without inventing network data."""
+        plt.rcParams['svg.fonttype'] = 'none'
+        plt.rcParams['pdf.fonttype'] = 42
+        plt.rcParams['font.sans-serif'] = ['Arial', 'Calibri', 'DejaVu Sans', 'sans-serif']
+        plt.rcParams['axes.unicode_minus'] = False
+
+        fig, ax = plt.subplots(figsize=(10, 10), dpi=dpi)
+        ax.set_xlim(-1.5, 1.5)
+        ax.set_ylim(-1.5, 1.5)
+        ax.axis('off')
+        ax.text(0, 0.12, "Not estimable", ha="center", va="center", fontsize=18,
+                fontweight="bold", color="#0F172A")
+        ax.text(0, -0.08, message, ha="center", va="center", fontsize=11,
+                color="#334155", wrap=True)
+        ax.text(0, 1.25, title, ha="center", va="center", fontsize=13,
+                fontweight="bold", color="#0F172A")
+        ax.text(0, -1.25,
+                "Treatment nodes and direct comparisons are not applicable because NMA was not planned.",
+                ha="center", va="center", fontsize=9, fontstyle="italic", color="#475569")
+        plt.tight_layout()
+
+        os.makedirs(os.path.dirname(output_prefix) if os.path.dirname(output_prefix) else ".", exist_ok=True)
+        png_path = f"{output_prefix}.png"
+        svg_path = f"{output_prefix}.svg"
+        pdf_path = f"{output_prefix}.pdf"
+        plt.savefig(png_path, dpi=dpi, bbox_inches="tight", facecolor="white")
+        plt.savefig(svg_path, format="svg", bbox_inches="tight", facecolor="white")
+        plt.savefig(pdf_path, format="pdf", bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+        return {"png": png_path, "svg": svg_path, "pdf": pdf_path}
+
+    @classmethod
     def generate(
         cls,
         treatments: List[Dict[str, Any]],

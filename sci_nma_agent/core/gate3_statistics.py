@@ -1,7 +1,9 @@
 """
 Gate 3: Numerical & Statistical Consistency Verification Gate.
-Enforces REML / DerSimonian-Laird random effects, Logit transformations for bounded outcomes,
-and mathematical self-consistency of 95% CIs and sample sizes.
+Validates protocol-declared statistical quantities, logit transformations for
+bounded outcomes, and mathematical self-consistency of 95% CIs and sample
+sizes. The bundled summary calculator is a QA helper; production estimator
+and software choices are recorded in the analysis manifest.
 """
 
 import math
@@ -80,13 +82,28 @@ class Gate3Statistics:
         cls, yi: List[float], vi: List[float], method: str = "DL"
     ) -> Dict[str, Any]:
         """
-        DerSimonian-Laird (DL) or REML random effects meta-analysis.
+        DerSimonian-Laird random-effects QA calculation. Production analyses
+        must use the protocol-declared estimator and primary software engine;
+        this helper does not claim to implement every estimator named by a
+        protocol.
         yi: effect sizes
         vi: variances (SE^2)
         """
+        if str(method).strip().casefold() not in {"dl", "derSimonian-laird".casefold()}:
+            raise ValueError(
+                "Gate 3 QA helper only implements DerSimonian-Laird; use the locked production engine "
+                "for REML, Paule-Mandel, or other estimators"
+            )
         k = len(yi)
         if k == 0:
-            return {"k": 0, "pooled_effect": 0.0, "se": 0.0}
+            return {
+                "k": 0,
+                "pooled_effect": 0.0,
+                "se": 0.0,
+                "engine_role": "exploratory_qa",
+                "production_use": "not_for_release",
+                "estimator": "DL",
+            }
 
         y_arr = np.array(yi, dtype=float)
         v_arr = np.array(vi, dtype=float)
@@ -126,6 +143,9 @@ class Gate3Statistics:
         i2 = max(0.0, (q - df) / q * 100.0) if q > df and q > 0 else 0.0
 
         return {
+            "engine_role": "exploratory_qa",
+            "production_use": "not_for_release",
+            "estimator": "DL",
             "k": k,
             "pooled_effect": y_re,
             "se": se_re_kh,

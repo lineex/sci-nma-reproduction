@@ -1,7 +1,9 @@
 """
 Network Meta-Analysis (NMA) Engine.
-Calculates direct and indirect mixed treatment comparisons, generates League Tables,
-and computes SUCRA (Surface Under the Cumulative RAnking) curves.
+Provides an exploratory direct-comparison/bridge calculation for QA fixtures.
+It is not a full contrast-based NMA implementation and its point-estimate
+ranking must not be reported as uncertainty-aware SUCRA without validation in
+the locked production NMA software.
 """
 
 from typing import List, Dict, Any, Tuple, Optional
@@ -10,7 +12,7 @@ import numpy as np
 
 
 class NetworkMetaEngine:
-    """Frequentist contrast-based Network Meta-Analysis & SUCRA Calculator."""
+    """Exploratory network QA calculator; production NMA uses a validated engine."""
 
     @classmethod
     def calculate_nma(
@@ -28,6 +30,34 @@ class NetworkMetaEngine:
         - log_or: float
         - se: float
         """
+        if len(set(treatments)) != len(treatments):
+            raise ValueError("treatments must be unique")
+        if reference_treatment not in treatments:
+            raise ValueError("reference_treatment must be included in treatments")
+        adjacency = {treatment: set() for treatment in treatments}
+        for trial in trials:
+            t1, t2 = trial["t1"], trial["t2"]
+            if t1 not in adjacency or t2 not in adjacency or t1 == t2:
+                raise ValueError("each trial must connect two distinct declared treatments")
+            if not math.isfinite(float(trial["se"])) or float(trial["se"]) <= 0:
+                raise ValueError("each trial standard error must be finite and positive")
+            adjacency[t1].add(t2)
+            adjacency[t2].add(t1)
+        reachable = {reference_treatment}
+        frontier = [reference_treatment]
+        while frontier:
+            current = frontier.pop()
+            for neighbor in adjacency[current]:
+                if neighbor not in reachable:
+                    reachable.add(neighbor)
+                    frontier.append(neighbor)
+        disconnected = [treatment for treatment in treatments if treatment not in reachable]
+        if disconnected:
+            raise ValueError(
+                "network is disconnected from the reference treatment; "
+                f"report separate components instead of ranking together: {disconnected}"
+            )
+
         # 1. Direct comparisons matrix
         direct_pairs = {}
         for tr in trials:
@@ -77,7 +107,10 @@ class NetworkMetaEngine:
                         bridge_found = True
                         break
                 if not bridge_found:
-                    y, se = 0.0, 1.0
+                    raise ValueError(
+                        "QA NMA calculator supports only direct or single-bridge contrasts; "
+                        "use the locked production NMA engine for multi-hop networks"
+                    )
 
             ci_low = math.exp(y - 1.96 * se)
             ci_high = math.exp(y + 1.96 * se)
@@ -129,6 +162,9 @@ class NetworkMetaEngine:
             })
 
         return {
+            "engine_role": "exploratory_qa",
+            "production_use": "not_for_release",
+            "model_scope": "direct_comparison_and_single_bridge_Bucher_QA",
             "reference_treatment": reference_treatment,
             "relative_effects_vs_reference": rel_effects,
             "league_table": league_table,

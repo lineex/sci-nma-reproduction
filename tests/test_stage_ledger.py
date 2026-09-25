@@ -7,6 +7,9 @@ import pytest
 
 from sci_nma_agent.workflow.stage_ledger import AgentStageLedger, StageLedgerError
 from sci_nma_agent.workflow.protocol_validation import (
+    validate_analysis_manifest,
+    validate_analysis_manifest_binding,
+    validate_analysis_manifest_file,
     validate_fact_status_manifest,
     validate_full_text_screening_manifest,
     validate_full_text_fact_state,
@@ -45,6 +48,7 @@ def _valid_protocol_text():
     template = Path(__file__).parents[1] / "data" / "templates" / "review_protocol_template.json"
     protocol = json.loads(template.read_text(encoding="utf-8"))
     values = {
+        "project.id": "review-1",
         "project.title": "Test review",
         "project.lead": "Lead reviewer",
         "project.created_date": "2026-09-25",
@@ -86,6 +90,14 @@ def _valid_protocol_text():
         "synthesis.sensitivity_analysis_rationale": "Repeat using the prespecified alternative estimator and high-risk studies excluded",
         "synthesis.small_study_effects_plan": "Assess only when sufficient studies are available; otherwise report not assessed",
         "synthesis.software_and_version": "R 4.5.1, meta 8.1-0",
+        "synthesis.analysis_manifest_path": "verification/analysis_manifest.json",
+        "synthesis.software.primary_engine.name": "R",
+        "synthesis.software.primary_engine.version": "4.5.1",
+        "synthesis.software.primary_engine.role": "Primary production engine for pairwise synthesis and prespecified NMA",
+        "synthesis.software.primary_engine.packages": ["meta 8.1-0"],
+        "synthesis.software.certainty_tools": ["GRADEpro GDT 2026.1"],
+        "synthesis.software.runtime_lock_paths": ["renv.lock"],
+        "synthesis.software.random_seed": "20260926",
         "certainty.framework": "GRADE",
         "certainty.downgrade_upgrade_rules": "Apply the five GRADE domains with outcome-level rationale",
         "agent_governance.human_accountable_lead": "Principal investigator",
@@ -112,6 +124,7 @@ def _valid_protocol_text():
     protocol["risk_of_bias"]["tool_by_design"] = {"Randomized controlled trials": "RoB 2"}
     protocol["risk_of_bias"]["reviewers"] = ["RoB reviewer A", "RoB reviewer B"]
     protocol["synthesis"]["synthesis_groups"] = ["Randomized trials, primary outcome"]
+    protocol["synthesis"]["pairwise_meta_analysis"]["enabled"] = True
     protocol["synthesis"]["effect_measures"] = {"mortality": "Risk ratio"}
     protocol["synthesis"]["heterogeneity_assessment"] = ["Tau-squared", "I-squared"]
     protocol["certainty"]["critical_outcomes"] = ["All-cause mortality"]
@@ -303,6 +316,240 @@ def test_protocol_preflight_rejects_template_and_requires_nma_assumptions():
     protocol["synthesis"]["network_meta_analysis"]["transitivity_assessment"] = ""
     errors = validate_review_protocol(protocol)
     assert any("transitivity_assessment" in error for error in errors)
+
+
+def test_analysis_manifest_requires_methods_software_and_hashed_outputs(tmp_path):
+    output = tmp_path / "results" / "pooled_effects.json"
+    output.parent.mkdir(parents=True)
+    output.write_text('{"estimate": 0.82}\n', encoding="utf-8")
+    output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+    input_snapshot = tmp_path / "data" / "locked_input_snapshot.json"
+    input_snapshot.parent.mkdir(parents=True)
+    input_snapshot.write_text('{"study_ids":["S1"]}\n', encoding="utf-8")
+    input_snapshot_hash = hashlib.sha256(input_snapshot.read_bytes()).hexdigest()
+    manifest = {
+        "schema_version": 1,
+        "project_id": "review-1",
+        "stage_id": "synthesis",
+        "protocol_sha256": "a" * 64,
+        "input_snapshot_path": "data/locked_input_snapshot.json",
+        "input_snapshot_sha256": input_snapshot_hash,
+        "code_commit": "deadbeef",
+        "estimands": ["30-day all-cause mortality"],
+        "effect_measure_by_outcome": {"mortality_30d": "RR"},
+        "pairwise": {
+            "primary_model": "random effects",
+            "primary_estimator": "REML",
+            "interval_method": "Hartung-Knapp",
+            "heterogeneity_statistics": ["tau2", "I2", "Q"],
+            "prediction_interval": "95% prediction interval",
+            "zero_event_rule": "Prespecified exact/GLMM sensitivity; no silent continuity correction",
+            "multi_arm_and_dependency_rule": "Retain covariance or use robust variance",
+            "missing_data_rule": "Contact authors and run prespecified sensitivity scenarios",
+            "sensitivity_analyses": ["Paule-Mandel estimator"],
+        },
+        "network_meta_analysis": {
+            "planned": False,
+            "not_planned_rationale": "No connected intervention network is in scope",
+        },
+        "software": {
+            "primary_engine": {
+                "name": "R",
+                "version": "4.5.1",
+                "packages": ["meta 8.1-0", "metafor 4.8-0"],
+                "role": "Primary production pairwise synthesis",
+            },
+            "verification_engines": ["Stata 18 meta"],
+                "certainty_tools": ["GRADEpro GDT 2026.1"],
+            "runtime_lock_paths": ["renv.lock"],
+            "random_seed": "20260926",
+        },
+        "diagnostics": ["leave-one-out", "prediction interval"],
+        "deviations": [],
+        "outputs": [{"path": "results/pooled_effects.json", "sha256": output_hash}],
+        "review_signoff": {"executor": "statistician"},
+    }
+    assert validate_analysis_manifest(manifest) == []
+    manifest_path = tmp_path / "analysis_manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert validate_analysis_manifest_file(manifest_path, tmp_path) == []
+
+    manifest["outputs"][0]["sha256"] = "c" * 64
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    errors = validate_analysis_manifest_file(manifest_path, tmp_path)
+    assert any("does not match its file" in error for error in errors)
+
+
+def test_analysis_manifest_binds_input_snapshot_and_allows_nma_only_plan(tmp_path):
+    output = tmp_path / "results" / "nma.json"
+    output.parent.mkdir(parents=True)
+    output.write_text('{"network":"connected"}\n', encoding="utf-8")
+    snapshot = tmp_path / "data" / "locked.json"
+    snapshot.parent.mkdir(parents=True)
+    snapshot.write_text('{"extracted":true}\n', encoding="utf-8")
+    manifest = {
+        "schema_version": 1,
+        "project_id": "review-1",
+        "stage_id": "synthesis",
+        "protocol_sha256": "a" * 64,
+        "input_snapshot_path": "data/locked.json",
+        "input_snapshot_sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
+        "code_commit": "deadbeef",
+        "estimands": ["30-day mortality"],
+        "effect_measure_by_outcome": {"mortality": "Risk ratio"},
+        "pairwise": {"planned": False, "not_planned_rationale": "Only a connected treatment network is estimable"},
+        "network_meta_analysis": {
+                "planned": True,
+                "model": "Frequentist random-effects contrast-based NMA",
+                "node_definitions": "Each corticosteroid regimen is a distinct intervention node; combination regimens remain separate",
+                "connectivity": "All nodes connected to placebo",
+                "transitivity": "Baseline risk and severity assessed",
+                "transitivity_effect_modifiers": ["baseline severity", "baseline mortality risk"],
+                "inconsistency": "Design-by-treatment and node-splitting",
+            "multi_arm_covariance": "Preserve within-study covariance",
+            "heterogeneity": "Common random-effects heterogeneity",
+            "ranking_uncertainty": "Rank probabilities with intervals",
+                "certainty_method": "CINeMA",
+                "assumption_failure_plan": "Downgrade certainty and report direct and indirect estimates separately when assumptions fail",
+        },
+        "software": {
+                "primary_engine": {"name": "R", "version": "4.5.1", "packages": ["netmeta 3.2-0"], "role": "Primary production NMA"},
+            "verification_engines": [],
+                "certainty_tools": ["CINeMA 1.1"],
+            "runtime_lock_paths": ["renv.lock"],
+            "random_seed": "20260926",
+        },
+        "diagnostics": ["node-splitting"],
+        "intermediate_outputs": [],
+        "convergence": {"status": "not_applicable", "details": "Frequentist model"},
+        "deviations": [],
+        "outputs": [{"path": "results/nma.json", "sha256": hashlib.sha256(output.read_bytes()).hexdigest()}],
+    }
+    manifest_path = tmp_path / "analysis_manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert validate_analysis_manifest_file(manifest_path, tmp_path) == []
+
+    snapshot.write_text('{"extracted":false}\n', encoding="utf-8")
+    errors = validate_analysis_manifest_file(manifest_path, tmp_path)
+    assert any("input_snapshot_sha256 does not match" in error for error in errors)
+
+
+def test_analysis_manifest_rejects_python_as_primary_production_engine():
+    manifest = {
+        "schema_version": 1,
+        "stage_id": "synthesis",
+        "project_id": "review-1",
+        "protocol_sha256": "a" * 64,
+        "input_snapshot_path": "data/locked.json",
+        "input_snapshot_sha256": "b" * 64,
+        "code_commit": "deadbeef",
+        "estimands": ["mortality"],
+        "effect_measure_by_outcome": {"mortality": "RR"},
+        "pairwise": {"planned": False, "not_planned_rationale": "NMA only"},
+        "network_meta_analysis": {"planned": True, "connectivity": "connected", "transitivity": "assessed", "inconsistency": "checked", "multi_arm_covariance": "modeled", "heterogeneity": "common", "ranking_uncertainty": "reported", "certainty_method": "CINeMA"},
+        "software": {"primary_engine": {"name": "Python", "version": "3.13", "packages": [], "role": "Primary production engine"}, "verification_engines": [], "certainty_tools": [], "runtime_lock_paths": [], "random_seed": "1"},
+        "diagnostics": [], "intermediate_outputs": [], "convergence": {}, "deviations": [],
+        "outputs": [{"path": "results.json", "sha256": "c" * 64}],
+    }
+    errors = validate_analysis_manifest(manifest)
+    assert any("cannot be Python" in error for error in errors)
+
+
+def test_protocol_preflight_rejects_python_as_primary_production_engine():
+    protocol = json.loads(_valid_protocol_text())
+    protocol["synthesis"]["software"]["primary_engine"]["name"] = "Python"
+    errors = validate_review_protocol(protocol)
+    assert any("synthesis.software.primary_engine cannot be Python" in error for error in errors)
+
+
+def test_analysis_manifest_binding_rejects_estimator_interval_role_and_extra_outcome():
+    protocol = json.loads(_valid_protocol_text())
+    manifest = {
+        "project_id": "review-1",
+        "effect_measure_by_outcome": {"mortality": "Risk ratio", "unplanned_extra": "OR"},
+        "pairwise": {
+            "planned": True,
+            "primary_model": "random effects",
+            "primary_estimator": "DerSimonian-Laird",
+            "interval_method": "Wald normal interval",
+        },
+        "network_meta_analysis": {"planned": False},
+        "software": {
+            "primary_engine": {
+                "name": "R",
+                "version": "4.5.1",
+                "packages": [],
+                "role": "QA only",
+            }
+        },
+    }
+    errors = validate_analysis_manifest_binding(manifest, protocol)
+    assert any("estimator does not match" in error for error in errors)
+    assert any("interval method does not match" in error for error in errors)
+    assert any("software role" in error for error in errors)
+    assert any("outcomes not declared" in error for error in errors)
+
+
+def test_analysis_manifest_binding_exactly_binds_nma_decisions():
+    protocol = json.loads(_valid_protocol_text())
+    protocol_nma = protocol["synthesis"]["network_meta_analysis"]
+    protocol_nma.update(
+        {
+            "enabled": True,
+            "intervention_node_definitions": "Each regimen is a distinct node",
+            "transitivity_effect_modifiers": ["baseline severity", "baseline risk"],
+            "transitivity_assessment": "Compare severity and baseline risk across designs",
+            "network_connectivity_and_geometry": "All nodes connected to placebo",
+            "incoherence_assessment": "Design-by-treatment and node-splitting",
+            "model_specification": "Frequentist random-effects contrast-based NMA",
+            "model_and_multi_arm_handling": "Common heterogeneity with covariance-preserving multi-arm handling",
+            "ranking_interpretation": "Rank probabilities with uncertainty intervals",
+            "certainty_framework": "CINeMA",
+            "assumption_failure_plan": "Separate direct and indirect evidence and downgrade certainty",
+        }
+    )
+    protocol["synthesis"]["pairwise_meta_analysis"]["enabled"] = False
+    protocol["synthesis"]["software"]["primary_engine"] = {
+        "name": "R",
+        "version": "4.5.1",
+        "packages": ["netmeta 3.2-0"],
+        "role": "Primary production NMA",
+    }
+    protocol["synthesis"]["software"]["certainty_tools"] = ["CINeMA 1.1"]
+    manifest = {
+        "project_id": "review-1",
+        "effect_measure_by_outcome": {"mortality": "Risk ratio"},
+        "pairwise": {"planned": False},
+        "network_meta_analysis": {
+            "planned": True,
+            "model": "Frequentist random-effects contrast-based NMA",
+            "node_definitions": "Each regimen is a distinct node",
+            "transitivity_effect_modifiers": ["baseline severity", "baseline risk"],
+            "connectivity": "All nodes connected to placebo",
+            "transitivity": "Compare severity and baseline risk across designs",
+            "inconsistency": "Design-by-treatment and node-splitting",
+            "multi_arm_covariance": "Common heterogeneity with covariance-preserving multi-arm handling",
+            "heterogeneity": "Common random-effects heterogeneity",
+            "ranking_uncertainty": "Rank probabilities with uncertainty intervals",
+            "certainty_method": "CINeMA",
+            "assumption_failure_plan": "Separate direct and indirect evidence and downgrade certainty",
+        },
+        "software": {
+            "primary_engine": {"name": "R", "version": "4.5.1", "packages": ["netmeta 3.2-0"], "role": "Primary production NMA"},
+            "certainty_tools": ["CINeMA 1.1"],
+            "runtime_lock_paths": ["renv.lock"],
+            "random_seed": "20260926",
+        },
+    }
+    assert validate_analysis_manifest_binding(manifest, protocol) == []
+
+    manifest["network_meta_analysis"]["certainty_method"] = "GRADE"
+    errors = validate_analysis_manifest_binding(manifest, protocol)
+    assert any("certainty_method does not exactly match" in error for error in errors)
+    manifest["network_meta_analysis"]["certainty_method"] = "CINeMA"
+    manifest["network_meta_analysis"]["transitivity_effect_modifiers"] = ["age only"]
+    errors = validate_analysis_manifest_binding(manifest, protocol)
+    assert any("transitivity_effect_modifiers does not exactly match" in error for error in errors)
 
 
 def test_methods_source_log_requires_handbook_chapter_dates_and_tutorial_provenance():
@@ -800,8 +1047,8 @@ def test_retrieval_submission_is_bound_to_approved_study_report_map(tmp_path, mo
 
 
 def test_retrieval_resume_review_gate(tmp_path, monkeypatch):
-    path_parts = tmp_path.name.split("-")
-    tmp_path = tmp_path.parent / f"p{path_parts[1]}-{path_parts[2]}"
+    # Keep the test independent of pytest's platform-specific temporary path naming.
+    tmp_path = tmp_path / "resume-project"
     tmp_path.mkdir()
     stages = [
         ("deduplication", "Deduplication"),

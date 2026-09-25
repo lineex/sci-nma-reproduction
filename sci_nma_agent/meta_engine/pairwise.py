@@ -1,7 +1,10 @@
 """
 Pairwise Meta-Analysis Engine.
-Calculates pooled effect sizes (OR, RR, MD, SMD) using DerSimonian-Laird and REML
-with Knapp-Hartung adjustments and heterogeneity metrics (I², τ², Q).
+Provides an exploratory binary-outcome QA calculation (OR, RR, and risk
+difference) using a DL-style heterogeneity estimate and optional
+Knapp-Hartung adjustment. It is not the production authority for MD/SMD,
+zero-event, dependent-effect, or estimator selection; those decisions belong
+to the protocol and the locked primary software engine.
 """
 
 from typing import List, Dict, Any, Tuple
@@ -26,6 +29,10 @@ class PairwiseMetaAnalysis:
         - events_control: int
         - total_control: int
         """
+        if str(model).strip().casefold() not in {"fixed", "random"}:
+            raise ValueError("QA pairwise calculator model must be 'fixed' or 'random'")
+        if str(measure).strip().upper() not in {"OR", "RR", "RD"}:
+            raise ValueError("QA pairwise calculator supports OR, RR, or RD only")
         yi = []
         vi = []
         study_records = []
@@ -82,7 +89,7 @@ class PairwiseMetaAnalysis:
 
         k = len(yi)
         if k == 0:
-            return {"k": 0, "pooled_effect": 1.0}
+            return {"k": 0, "pooled_effect": 1.0, "engine_role": "exploratory_qa", "production_use": "not_for_release"}
 
         y_arr = np.array(yi, dtype=float)
         v_arr = np.array(vi, dtype=float)
@@ -136,6 +143,9 @@ class PairwiseMetaAnalysis:
         i2 = max(0.0, (q - df) / q * 100.0) if q > df and q > 0 else 0.0
 
         return {
+            "engine_role": "exploratory_qa",
+            "production_use": "not_for_release",
+            "estimator": "DL",
             "k": k,
             "measure": measure.upper(),
             "model": model,

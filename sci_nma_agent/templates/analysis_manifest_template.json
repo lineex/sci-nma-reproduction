@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "project_id": "PROJECT_ID",
+  "stage_id": "synthesis",
+  "protocol_sha256": "",
+  "input_snapshot_path": "data/locked_input_snapshot.json",
+  "input_snapshot_sha256": "",
+  "code_commit": "",
+  "estimands": [],
+  "effect_measure_by_outcome": {},
+  "pairwise": {
+    "planned": true,
+    "not_planned_rationale": "",
+    "primary_model": "",
+    "primary_estimator": "",
+    "interval_method": "",
+    "heterogeneity_statistics": ["tau2", "I2", "Q"],
+    "prediction_interval": "",
+    "zero_event_rule": "",
+    "multi_arm_and_dependency_rule": "",
+    "missing_data_rule": "",
+    "sensitivity_analyses": []
+  },
+  "network_meta_analysis": {
+    "planned": false,
+    "model": "",
+    "node_definitions": "",
+    "not_planned_rationale": "",
+    "connectivity": "",
+    "transitivity": "",
+    "transitivity_effect_modifiers": [],
+    "inconsistency": "",
+    "multi_arm_covariance": "",
+    "heterogeneity": "",
+    "ranking_uncertainty": "",
+    "certainty_method": "",
+    "assumption_failure_plan": ""
+  },
+  "software": {
+    "primary_engine": {
+      "name": "",
+      "version": "",
+      "packages": [],
+      "role": ""
+    },
+    "verification_engines": [],
+    "certainty_tools": [],
+    "runtime_lock_paths": [],
+    "random_seed": ""
+  },
+  "diagnostics": [],
+  "intermediate_outputs": [],
+  "convergence": {
+    "status": "",
+    "details": "",
+    "diagnostic_paths": []
+  },
+  "deviations": [],
+  "outputs": [
+    {
+      "path": "",
+      "sha256": ""
+    }
+  ],
+  "review_signoff": {
+    "executor": "",
+    "reviewer_a": "",
+    "reviewer_b": "",
+    "approved_at": ""
+  }
+}

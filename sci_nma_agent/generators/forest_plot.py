@@ -16,6 +16,58 @@ class ForestPlotGenerator:
     """Generates publication-grade Forest Plots across PNG, SVG, and PDF formats."""
 
     @classmethod
+    def generate_not_estimable(
+        cls,
+        output_prefix: str,
+        title: str = "All-Cause Mortality at 28-30 Days",
+        message: str = "Pairwise meta-analysis not planned; no pooled pairwise estimate is estimable.",
+        xlabel: str = "Odds Ratio (95% CI)",
+        dpi: int = 600,
+    ) -> Dict[str, str]:
+        """Render the fixed forest-figure contract when pairwise synthesis is not estimable.
+
+        This intentionally contains no synthetic study row, effect estimate, CI, or
+        summary diamond. It is used for NMA-only production protocols so the fixed
+        Figure 2 file contract remains present without fabricating pairwise data.
+        """
+        plt.rcParams['svg.fonttype'] = 'none'
+        plt.rcParams['pdf.fonttype'] = 42
+        plt.rcParams['font.sans-serif'] = ['Arial', 'Calibri', 'DejaVu Sans', 'sans-serif']
+        plt.rcParams['axes.unicode_minus'] = False
+
+        fig, ax = plt.subplots(figsize=(11, 8.0), dpi=dpi)
+        ax.set_xscale("log")
+        ax.set_xlim(0.1, 10.0)
+        ax.set_xticks([0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0])
+        ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
+        ax.axvline(x=1.0, color="#64748B", linestyle="--", lw=1.2, zorder=1)
+        ax.text(
+            0.5, 0.56, "Not estimable", transform=ax.transAxes,
+            ha="center", va="center", fontsize=18, fontweight="bold", color="#0F172A"
+        )
+        ax.text(
+            0.5, 0.46, message, transform=ax.transAxes,
+            ha="center", va="center", fontsize=11, color="#334155", wrap=True
+        )
+        ax.set_ylim(0.0, 1.0)
+        ax.set_yticks([])
+        ax.set_xlabel(xlabel, fontsize=10.5, fontweight="bold", labelpad=10)
+        ax.set_title(title, fontsize=12, fontweight="bold", pad=16)
+        for spine in ("left", "right", "top"):
+            ax.spines[spine].set_visible(False)
+        plt.tight_layout()
+
+        os.makedirs(os.path.dirname(output_prefix) if os.path.dirname(output_prefix) else ".", exist_ok=True)
+        png_path = f"{output_prefix}.png"
+        svg_path = f"{output_prefix}.svg"
+        pdf_path = f"{output_prefix}.pdf"
+        plt.savefig(png_path, dpi=dpi, bbox_inches="tight", facecolor="white")
+        plt.savefig(svg_path, format="svg", bbox_inches="tight", facecolor="white")
+        plt.savefig(pdf_path, format="pdf", bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+        return {"png": png_path, "svg": svg_path, "pdf": pdf_path}
+
+    @classmethod
     def generate(
         cls,
         analysis_result: Dict[str, Any],

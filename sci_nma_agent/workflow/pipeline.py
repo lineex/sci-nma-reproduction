@@ -7,7 +7,9 @@ preventing flawed or unverified evidence from propagating into downstream stages
 
 import os
 import json
-from typing import Dict, Any, List, Tuple
+import math
+from pathlib import Path
+from typing import Dict, Any, List, Tuple, Optional
 
 from ..databases.query_harmonizer import QueryHarmonizer
 from ..databases.corpus_repository import CorpusRepository
@@ -31,6 +33,8 @@ from ..core.gate4_figure_vector import Gate4FigureVector
 from ..core.gate5_office_audit import Gate5OfficeAudit
 from ..core.audit_runner import AuditRunner, VerificationReport
 from ..reviewer.ai_reviewer import AIPeerReviewer
+from .protocol_validation import validate_analysis_manifest_file
+from .stage_ledger import AgentStageLedger, StageLedgerError
 
 
 class StepAcceptanceError(RuntimeError):
@@ -53,6 +57,277 @@ class SOPPipeline:
 
     def __init__(self, project_dir: str):
         self.project_dir = project_dir
+
+    def _resolve_project_path(self, path: str) -> Path:
+        """Resolve project-relative production evidence without depending on CWD."""
+        candidate = Path(path).expanduser()
+        if not candidate.is_absolute():
+            candidate = Path(self.project_dir).expanduser() / candidate
+        return candidate.resolve()
+
+    def _require_production_synthesis(
+        self, *results: Dict[str, Any], result_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Require external locked-engine evidence before producing formal artifacts."""
+        project = Path(self.project_dir).expanduser().resolve()
+        protocol_path = project / "review_protocol.json"
+        if not protocol_path.is_file():
+            raise StepAcceptanceError("Production release requires an approved review_protocol.json")
+        try:
+            protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise StepAcceptanceError(f"Production release cannot read review protocol: {exc}") from exc
+        declared = protocol.get("synthesis", {}).get("analysis_manifest_path")
+        manifest_path = project / str(declared or "")
+        errors = validate_analysis_manifest_file(manifest_path, project, protocol_path=protocol_path)
+        if errors:
+            raise StepAcceptanceError(
+                "Production release requires a valid protocol-bound analysis manifest: " + "; ".join(errors)
+            )
+        try:
+            ledger = AgentStageLedger(str(project)).status()
+        except StageLedgerError as exc:
+            raise StepAcceptanceError(f"Production release requires the stage ledger: {exc}") from exc
+        if not ledger.get("integrity_valid") or not ledger.get("evidence_integrity_valid"):
+            raise StepAcceptanceError("Production release requires valid stage-ledger and evidence integrity")
+        if ledger.get("stages", {}).get("protocol", {}).get("status") != "approved":
+            raise StepAcceptanceError("Production release requires two independent protocol approvals")
+        if ledger.get("stages", {}).get("synthesis", {}).get("status") != "approved":
+            raise StepAcceptanceError("Production release requires two independent synthesis approvals")
+        manifest_rel = manifest_path.relative_to(project).as_posix()
+        if not any(
+            record.get("path") == manifest_rel
+            for record in ledger.get("stages", {}).get("synthesis", {}).get("artifact_manifest", [])
+        ):
+            raise StepAcceptanceError("Approved synthesis evidence does not contain the declared analysis manifest")
+        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        protocol_synthesis = protocol.get("synthesis", {})
+        pairwise_planned = bool(
+            protocol_synthesis.get("pairwise_meta_analysis", {}).get("enabled", True)
+        )
+        nma_planned = bool(
+            protocol_synthesis.get("network_meta_analysis", {}).get("enabled", False)
+        )
+        result_pairwise = results[0] if results else {}
+        result_network = results[1] if len(results) > 1 else None
+        if pairwise_planned and result_pairwise.get("planned") is False:
+            raise StepAcceptanceError("Production pairwise result is marked not planned but protocol plans pairwise synthesis")
+        if not pairwise_planned and result_pairwise.get("planned") is not False:
+            raise StepAcceptanceError("Protocol does not plan pairwise synthesis; production pairwise result must declare planned=false")
+        if nma_planned:
+            if not isinstance(result_network, dict) or result_network.get("planned") is False:
+                raise StepAcceptanceError("Protocol plans NMA; production results must include planned network evidence")
+        elif isinstance(result_network, dict) and result_network.get("planned") is True:
+            raise StepAcceptanceError("Protocol does not plan NMA; production network result must declare planned=false")
+        if result_path:
+            try:
+                result_rel = self._resolve_project_path(result_path).relative_to(project).as_posix()
+            except ValueError as exc:
+                raise StepAcceptanceError("External production results must be inside the review project") from exc
+            declared_result_paths = {
+                str(item.get("path"))
+                for field in ("outputs", "intermediate_outputs")
+                for item in manifest_data.get(field, [])
+                if isinstance(item, dict)
+            }
+            if result_rel not in declared_result_paths:
+                raise StepAcceptanceError(
+                    "External production results must be declared in analysis_manifest outputs/intermediate_outputs"
+                )
+        for result in results:
+            if result.get("engine_role") == "exploratory_qa" or result.get("production_use") == "not_for_release":
+                raise StepAcceptanceError(
+                    "Production artifacts require result objects emitted by the locked primary engine; "
+                    "bundled Python QA results are not releasable"
+                )
+        return manifest_data
+
+    def _load_production_results(self, result_path: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        path = self._resolve_project_path(result_path)
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise StepAcceptanceError(f"Unable to read locked production results: {exc}") from exc
+        if not isinstance(payload, dict) or not isinstance(payload.get("pairwise"), dict):
+            raise StepAcceptanceError("Production results JSON must contain a pairwise result object")
+        pairwise = payload["pairwise"]
+        if not isinstance(pairwise.get("planned", True), bool):
+            raise StepAcceptanceError("Locked production pairwise result planned must be a boolean when supplied")
+        pairwise.setdefault("planned", True)
+        network = payload.get("network")
+        if network is None:
+            network = {"planned": False, "engine_role": "not_planned", "production_use": "not_applicable"}
+        if not isinstance(network, dict):
+            raise StepAcceptanceError("Production results JSON network must be an object when supplied")
+        if not isinstance(network.get("planned", True), bool):
+            raise StepAcceptanceError("Locked production network result planned must be a boolean when supplied")
+        network.setdefault("planned", True)
+        for label, result in (("pairwise", pairwise), ("network", network)):
+            if result.get("planned") is False:
+                if not (
+                    result.get("engine_role") == "not_planned"
+                    and result.get("production_use") == "not_applicable"
+                ):
+                    raise StepAcceptanceError(
+                        f"A non-planned {label} result must declare engine_role=not_planned and "
+                        "production_use=not_applicable"
+                    )
+                continue
+            if result.get("engine_role") in {"exploratory_qa", "qa", "python"} or result.get("production_use") == "not_for_release":
+                raise StepAcceptanceError(f"Locked production {label} result is marked as QA/not-for-release")
+            if result.get("engine_role") not in {"locked_production", "r_production", "stata_production", "validated_production"}:
+                raise StepAcceptanceError(f"Locked production {label} result must declare a production engine role")
+            if result.get("production_use") != "release":
+                raise StepAcceptanceError(f"Locked production {label} result must declare production_use=release")
+        if pairwise.get("planned") is not False:
+            required_pairwise = (
+                "pooled_estimate", "ci_lower", "ci_upper", "i2_percent", "tau2", "p_value", "studies"
+            )
+            missing_pairwise = [field for field in required_pairwise if field not in pairwise]
+            if missing_pairwise:
+                raise StepAcceptanceError(
+                    "Locked production pairwise result is missing renderable fields: " + ", ".join(missing_pairwise)
+                )
+            if not isinstance(pairwise.get("studies"), list) or not pairwise["studies"]:
+                raise StepAcceptanceError("Locked production pairwise result must contain non-empty study-level rows")
+            for field in required_pairwise[:-1]:
+                try:
+                    if not isinstance(pairwise.get(field), (int, float)) or not math.isfinite(float(pairwise[field])):
+                        raise ValueError
+                except (TypeError, ValueError):
+                    raise StepAcceptanceError(
+                        f"Locked production pairwise result field {field} must be a finite numeric value"
+                    )
+            if float(pairwise["ci_lower"]) > float(pairwise["ci_upper"]):
+                raise StepAcceptanceError("Locked production pairwise confidence interval bounds are reversed")
+        if network.get("planned") is not False:
+            if not isinstance(network.get("rankings"), list) or not network["rankings"]:
+                raise StepAcceptanceError("Locked production network result must contain non-empty rankings")
+            if not isinstance(network.get("comparisons"), list) or not network["comparisons"]:
+                raise StepAcceptanceError("Locked production network result must contain non-empty comparisons")
+            treatments = network.get("treatments")
+            if not isinstance(treatments, list) or not treatments:
+                raise StepAcceptanceError(
+                    "Locked production network result must contain non-empty treatments for Figure 3 geometry"
+                )
+            treatment_ids = []
+            for index, treatment in enumerate(treatments):
+                if not isinstance(treatment, dict):
+                    raise StepAcceptanceError(f"Locked production network treatment row {index} must be an object")
+                treatment_id = treatment.get("id")
+                if not isinstance(treatment_id, str) or not treatment_id.strip():
+                    raise StepAcceptanceError(f"Locked production network treatment row {index} has no id")
+                if treatment_id in treatment_ids:
+                    raise StepAcceptanceError(f"Locked production network treatment id is duplicated: {treatment_id}")
+                sample_size = treatment.get("sample_size")
+                if (
+                    isinstance(sample_size, bool)
+                    or not isinstance(sample_size, (int, float))
+                    or not math.isfinite(float(sample_size))
+                    or float(sample_size) <= 0
+                ):
+                    raise StepAcceptanceError(
+                        f"Locked production network treatment {treatment_id} sample_size must be a positive finite number"
+                    )
+                color = treatment.get("color")
+                if not isinstance(color, str) or not color.strip():
+                    raise StepAcceptanceError(
+                        f"Locked production network treatment {treatment_id} must declare a non-empty color"
+                    )
+                treatment_ids.append(treatment_id)
+            treatment_id_set = set(treatment_ids)
+            ranking_fields = ("treatment", "rank", "sucra_percent", "relative_or_vs_ref", "ci_lower", "ci_upper")
+            ranked_ids = set()
+            for index, ranking in enumerate(network["rankings"]):
+                if not isinstance(ranking, dict) or any(field not in ranking for field in ranking_fields):
+                    raise StepAcceptanceError(
+                        "Locked production network ranking rows must contain "
+                        + ", ".join(ranking_fields)
+                        + f" (row {index})"
+                    )
+                if not isinstance(ranking["treatment"], str) or not ranking["treatment"].strip():
+                    raise StepAcceptanceError(f"Locked production network ranking row {index} has no treatment")
+                if ranking["treatment"] not in treatment_id_set:
+                    raise StepAcceptanceError(
+                        f"Locked production network ranking row {index} references undeclared treatment "
+                        f"{ranking['treatment']}"
+                    )
+                if ranking["treatment"] in ranked_ids:
+                    raise StepAcceptanceError(
+                        f"Locked production network ranking treatment is duplicated: {ranking['treatment']}"
+                    )
+                ranked_ids.add(ranking["treatment"])
+                if not isinstance(ranking["rank"], int) or isinstance(ranking["rank"], bool):
+                    raise StepAcceptanceError(f"Locked production network ranking row {index} rank must be an integer")
+                try:
+                    numeric_values = [
+                        float(ranking[field]) for field in ranking_fields[2:]
+                    ]
+                except (TypeError, ValueError):
+                    raise StepAcceptanceError(f"Locked production network ranking row {index} has non-numeric values")
+                if not all(math.isfinite(value) for value in numeric_values):
+                    raise StepAcceptanceError(f"Locked production network ranking row {index} has non-finite values")
+                if float(ranking["ci_lower"]) > float(ranking["ci_upper"]):
+                    raise StepAcceptanceError(f"Locked production network ranking row {index} has reversed CI bounds")
+            if ranked_ids != treatment_id_set:
+                missing_rankings = ", ".join(sorted(treatment_id_set - ranked_ids))
+                extra_rankings = ", ".join(sorted(ranked_ids - treatment_id_set))
+                details = []
+                if missing_rankings:
+                    details.append(f"missing rankings for {missing_rankings}")
+                if extra_rankings:
+                    details.append(f"undeclared rankings for {extra_rankings}")
+                raise StepAcceptanceError(
+                    "Locked production network rankings must cover exactly the declared treatments: "
+                    + "; ".join(details)
+                )
+            seen_edges = set()
+            adjacency = {treatment_id: set() for treatment_id in treatment_ids}
+            for index, comparison in enumerate(network["comparisons"]):
+                if not isinstance(comparison, dict) or not comparison.get("t1") or not comparison.get("t2"):
+                    raise StepAcceptanceError(f"Locked production network comparison row {index} must identify t1 and t2")
+                t1, t2 = comparison["t1"], comparison["t2"]
+                if not isinstance(t1, str) or not isinstance(t2, str) or t1 == t2:
+                    raise StepAcceptanceError(
+                        f"Locked production network comparison row {index} must contain distinct treatment endpoints"
+                    )
+                if t1 not in treatment_id_set or t2 not in treatment_id_set:
+                    raise StepAcceptanceError(
+                        f"Locked production network comparison row {index} references an undeclared treatment"
+                    )
+                trial_count = comparison.get("trial_count")
+                if (
+                    isinstance(trial_count, bool)
+                    or not isinstance(trial_count, (int, float))
+                    or not math.isfinite(float(trial_count))
+                    or float(trial_count) <= 0
+                    or float(trial_count) != int(trial_count)
+                ):
+                    raise StepAcceptanceError(
+                        f"Locked production network comparison row {index} trial_count must be a positive integer"
+                    )
+                edge = tuple(sorted((t1, t2)))
+                if edge in seen_edges:
+                    raise StepAcceptanceError(
+                        f"Locked production network comparison is duplicated: {t1} vs {t2}"
+                    )
+                seen_edges.add(edge)
+                adjacency[t1].add(t2)
+                adjacency[t2].add(t1)
+            reachable = set()
+            pending = [treatment_ids[0]]
+            while pending:
+                current = pending.pop()
+                if current in reachable:
+                    continue
+                reachable.add(current)
+                pending.extend(adjacency[current] - reachable)
+            if reachable != treatment_id_set:
+                disconnected = ", ".join(sorted(treatment_id_set - reachable))
+                raise StepAcceptanceError(
+                    "Locked production network geometry must be connected; disconnected treatments: " + disconnected
+                )
+        return pairwise, network
 
     # -------------------------------------------------------------------------
     # STAGE 1: Evidence Ingestion & Multi-Database Search Formulation
@@ -167,9 +442,11 @@ class SOPPipeline:
             raise StepAcceptanceError(error_msg)
         print(f">>> [GATE 3 ACCEPTANCE: PASSED] 100% study sample sizes and 95% CIs self-consistent.")
 
-        # Compute pairwise meta-analysis
+        # The bundled calculators are deterministic QA fixtures only. A releasable
+        # synthesis must be produced by the locked production engine recorded in
+        # verification/analysis_manifest.json and released through the stage ledger.
         ma_result = PairwiseMetaAnalysis.analyze_binary(dataset, measure="OR", model="random")
-        print(f"    [Meta-Analysis Result] k = {ma_result['k']} RCTs, Pooled OR = {ma_result['pooled_estimate']:.3f} "
+        print(f"    [Exploratory QA Result only] k = {ma_result['k']} RCTs, Pooled OR = {ma_result['pooled_estimate']:.3f} "
               f"[{ma_result['ci_lower']:.3f}, {ma_result['ci_upper']:.3f}], I² = {ma_result['i2_percent']:.1f}%, p = {ma_result['p_value']:.4f}")
 
         # Compute Network Meta-Analysis
@@ -188,18 +465,24 @@ class SOPPipeline:
             })
 
         nma_result = NetworkMetaEngine.calculate_nma(trials_nma, treatments, reference_treatment="Placebo")
-        print(">>> [STAGE 3 ACCEPTANCE: PASSED] Statistical synthesis & network modeling verified.")
+        print(">>> [STAGE 3 QA CHECK: PASSED] Fixture calculations completed; production synthesis remains gated by the analysis manifest and locked R/Stata engine output.")
         return ma_result, nma_result, dataset
 
     # -------------------------------------------------------------------------
     # STAGE 4: Multi-Format Vector Figure Rendering
     # -------------------------------------------------------------------------
     def step4_render_figures(
-        self, flow_data: Dict[str, Any], ma_result: Dict[str, Any], dataset: List[Dict[str, Any]]
+        self, flow_data: Dict[str, Any], ma_result: Dict[str, Any], dataset: List[Dict[str, Any]], production: bool = False,
+        production_results_path: Optional[str] = None,
     ) -> Dict[str, Any]:
         print("\n================================================================================")
         print(">>> [STAGE 4/6] Multi-Format Vector Figure Rendering (600 DPI, Live <text>, PDF Type 42)")
         print("================================================================================")
+        if production:
+            if not production_results_path:
+                raise StepAcceptanceError("Production figure rendering requires --production-results JSON")
+            ma_result, nma_result = self._load_production_results(production_results_path)
+            self._require_production_synthesis(ma_result, nma_result, result_path=production_results_path)
         fig_dir = os.path.join(self.project_dir, "figures")
         svg_dir = os.path.join(self.project_dir, "editable_files", "vector_svg")
         pdf_dir = os.path.join(self.project_dir, "editable_files", "vector_pdf")
@@ -214,29 +497,64 @@ class SOPPipeline:
 
         # 2. Forest Plot
         forest_prefix = os.path.join(fig_dir, "Figure2_Forest_Plot_Mortality")
-        ForestPlotGenerator.generate(ma_result, forest_prefix)
-        ForestPlotGenerator.generate(ma_result, os.path.join(svg_dir, "Figure2_Forest_Plot_Mortality"))
-        ForestPlotGenerator.generate(ma_result, os.path.join(pdf_dir, "Figure2_Forest_Plot_Mortality"))
+        pairwise_planned = ma_result.get("planned", True) is not False
+        forest_targets = [
+            forest_prefix,
+            os.path.join(svg_dir, "Figure2_Forest_Plot_Mortality"),
+            os.path.join(pdf_dir, "Figure2_Forest_Plot_Mortality"),
+        ]
+        if pairwise_planned:
+            for target in forest_targets:
+                ForestPlotGenerator.generate(ma_result, target)
+        else:
+            # Preserve the fixed Figure 2 output contract without inventing a
+            # pairwise study row or pooled estimate for an NMA-only protocol.
+            for target in forest_targets:
+                ForestPlotGenerator.generate_not_estimable(
+                    target,
+                    title="All-Cause Mortality at 28-30 Days",
+                    message="Pairwise meta-analysis not planned; no pooled pairwise estimate is estimable.",
+                )
 
-        # 3. Network Geometry Map
-        treat_nodes = [
-            {"id": "Placebo", "sample_size": 4200, "color": "#94A3B8"},
-            {"id": "Hydrocortisone", "sample_size": 3950, "color": "#2563EB"},
-            {"id": "Hydrocortisone + Fludrocortisone", "sample_size": 2100, "color": "#059669"},
-            {"id": "Methylprednisolone", "sample_size": 950, "color": "#D97706"},
-            {"id": "Dexamethasone", "sample_size": 650, "color": "#DC2626"}
-        ]
-        comparisons = [
-            {"t1": "Hydrocortisone", "t2": "Placebo", "trial_count": 16},
-            {"t1": "Hydrocortisone + Fludrocortisone", "t2": "Placebo", "trial_count": 6},
-            {"t1": "Hydrocortisone + Fludrocortisone", "t2": "Hydrocortisone", "trial_count": 3},
-            {"t1": "Methylprednisolone", "t2": "Placebo", "trial_count": 4},
-            {"t1": "Dexamethasone", "t2": "Placebo", "trial_count": 2}
-        ]
+        # 3. Network Geometry Map. QA keeps the bundled fixture for regression
+        # tests; production must use the locked engine's geometry metadata.
+        if production:
+            if nma_result.get("planned", True) is False:
+                geometry_targets = [
+                    os.path.join(fig_dir, "Figure3_Network_Geometry_Map"),
+                    os.path.join(svg_dir, "Figure3_Network_Geometry_Map"),
+                    os.path.join(pdf_dir, "Figure3_Network_Geometry_Map"),
+                ]
+                for target in geometry_targets:
+                    NetworkGeometryGenerator.generate_not_estimable(
+                        target,
+                        title="Network Meta-analysis",
+                        message="Network meta-analysis not planned; no network geometry is estimable.",
+                    )
+                treat_nodes = comparisons = None
+            else:
+                treat_nodes = nma_result["treatments"]
+                comparisons = nma_result["comparisons"]
+        else:
+            treat_nodes = [
+                {"id": "Placebo", "sample_size": 4200, "color": "#94A3B8"},
+                {"id": "Hydrocortisone", "sample_size": 3950, "color": "#2563EB"},
+                {"id": "Hydrocortisone + Fludrocortisone", "sample_size": 2100, "color": "#059669"},
+                {"id": "Methylprednisolone", "sample_size": 950, "color": "#D97706"},
+                {"id": "Dexamethasone", "sample_size": 650, "color": "#DC2626"}
+            ]
+            comparisons = [
+                {"t1": "Hydrocortisone", "t2": "Placebo", "trial_count": 16},
+                {"t1": "Hydrocortisone + Fludrocortisone", "t2": "Placebo", "trial_count": 6},
+                {"t1": "Hydrocortisone + Fludrocortisone", "t2": "Hydrocortisone", "trial_count": 3},
+                {"t1": "Methylprednisolone", "t2": "Placebo", "trial_count": 4},
+                {"t1": "Dexamethasone", "t2": "Placebo", "trial_count": 2}
+            ]
         net_prefix = os.path.join(fig_dir, "Figure3_Network_Geometry_Map")
-        NetworkGeometryGenerator.generate(treat_nodes, comparisons, net_prefix)
-        NetworkGeometryGenerator.generate(treat_nodes, comparisons, os.path.join(svg_dir, "Figure3_Network_Geometry_Map"))
-        NetworkGeometryGenerator.generate(treat_nodes, comparisons, os.path.join(pdf_dir, "Figure3_Network_Geometry_Map"))
+        if treat_nodes is not None and comparisons is not None:
+            NetworkGeometryGenerator.generate(treat_nodes, comparisons, net_prefix)
+            NetworkGeometryGenerator.generate(treat_nodes, comparisons, os.path.join(svg_dir, "Figure3_Network_Geometry_Map"))
+            NetworkGeometryGenerator.generate(treat_nodes, comparisons, os.path.join(pdf_dir, "Figure3_Network_Geometry_Map"))
 
         # --- STEP 4 ACCEPTANCE CHECKPOINT (GATE 4: VECTOR INTEGRITY & ZERO RASTER) ---
         print("\n[*] Running Step 4 Acceptance Verification (Gate 4: Zero-Raster & SVG <text> Audit)...")
@@ -260,17 +578,126 @@ class SOPPipeline:
         flow_data: Dict[str, Any],
         ma_result: Dict[str, Any],
         nma_result: Dict[str, Any],
-        dataset: List[Dict[str, Any]]
+        dataset: List[Dict[str, Any]],
+        production: bool = False,
+        production_results_path: Optional[str] = None,
     ) -> Dict[str, str]:
         print("\n================================================================================")
         print(">>> [STAGE 5/6] Office Suites Engineering (<w:tblHeader/>, <w:cantSplit/>, Dynamic Excel)")
         print("================================================================================")
+        if production:
+            if not production_results_path:
+                raise StepAcceptanceError("Production office rendering requires --production-results JSON")
+            ma_result, nma_result = self._load_production_results(production_results_path)
+            self._require_production_synthesis(ma_result, nma_result, result_path=production_results_path)
+        pairwise_planned = ma_result.get("planned", True) is not False
+        nma_planned = nma_result.get("planned", True) is not False
+        production_engine = str(
+            (ma_result if pairwise_planned else nma_result).get(
+                "engine_role", "locked production engine"
+            )
+        )
+        if production:
+            pairwise_summary = (
+                f"Locked {production_engine} estimate (pooled OR {ma_result['pooled_estimate']:.2f}, "
+                f"95% CI [{ma_result['ci_lower']:.2f}, {ma_result['ci_upper']:.2f}], "
+                f"I² = {ma_result['i2_percent']:.1f}%)."
+                if pairwise_planned
+                else "Pairwise synthesis was not planned for this review."
+            )
+            planned_components = []
+            if pairwise_planned:
+                planned_components.append("pairwise")
+            if nma_planned:
+                planned_components.append("network")
+            component_label = " and ".join(planned_components) or "planned"
+            methods_summary = (
+                f"Formal {component_label} estimates were imported from the protocol-declared "
+                f"locked production engine ({production_engine}) and passed the synthesis release gate."
+            )
+            conclusions_summary = (
+                "The reported estimates and rankings are transcribed from the locked production "
+                "analysis and remain subject to the approved certainty assessment."
+            )
+        else:
+            pairwise_summary = (
+                f"QA fixture summary for {flow_data.get('studies_included', 29)} randomized controlled trials; "
+                f"not a production synthesis (pooled OR {ma_result['pooled_estimate']:.2f}, "
+                f"95% CI [{ma_result['ci_lower']:.2f}, {ma_result['ci_upper']:.2f}])."
+            )
+            methods_summary = (
+                "QA fixture rendering only. Formal pairwise and network estimates must be supplied by "
+                "the protocol-declared locked production engine."
+            )
+            conclusions_summary = "No clinical conclusion is released from the bundled Python QA calculation."
+
+        dataset_by_study = {str(row.get("study_id")): row for row in dataset if isinstance(row, dict)}
+        if production and not pairwise_planned:
+            # Keep the fixed workbook sheet contract, but do not copy arm-level
+            # extraction rows into a pairwise result table when pairwise synthesis
+            # is explicitly out of scope.
+            primary_rows = []
+        elif production and pairwise_planned:
+            primary_rows = []
+            for locked_row in ma_result.get("studies", []):
+                if not isinstance(locked_row, dict):
+                    continue
+                study_id = str(locked_row.get("study_id", "")).strip()
+                source_row = dataset_by_study.get(study_id, {})
+                effect = locked_row.get("effect_size", locked_row.get("estimate"))
+                ci_lower = locked_row.get("ci_lower")
+                ci_upper = locked_row.get("ci_upper")
+                primary_rows.append([
+                    study_id,
+                    source_row.get("events_treatment"), source_row.get("total_treatment"),
+                    source_row.get("events_control"), source_row.get("total_control"),
+                    round(float(effect), 3) if isinstance(effect, (int, float)) else effect,
+                    round(float(ci_lower), 3) if isinstance(ci_lower, (int, float)) else ci_lower,
+                    round(float(ci_upper), 3) if isinstance(ci_upper, (int, float)) else ci_upper,
+                ])
+        else:
+            primary_rows = [
+                [s["study_id"], s["events_treatment"], s["total_treatment"], s["events_control"],
+                 s["total_control"], round(s.get("effect_size", 1.0), 3),
+                 round(s.get("ci_lower", 0.8), 3), round(s.get("ci_upper", 1.2), 3)]
+                for s in dataset
+            ]
+
+        nma_rows = []
+        if nma_planned:
+            for row in nma_result.get("rankings", []):
+                if not isinstance(row, dict):
+                    continue
+                score = row.get("sucra_percent", row.get("rank_probability", ""))
+                estimate = row.get("relative_or_vs_ref", row.get("estimate", ""))
+                nma_rows.append([
+                    row.get("treatment", ""), row.get("rank", ""),
+                    round(score, 1) if isinstance(score, (int, float)) else score,
+                    round(estimate, 2) if isinstance(estimate, (int, float)) else estimate,
+                    round(row["ci_lower"], 2) if isinstance(row.get("ci_lower"), (int, float)) else row.get("ci_lower", ""),
+                    round(row["ci_upper"], 2) if isinstance(row.get("ci_upper"), (int, float)) else row.get("ci_upper", ""),
+                ])
         office_dir = os.path.join(self.project_dir, "editable_files", "office_docs")
         os.makedirs(office_dir, exist_ok=True)
 
         fig_dir = os.path.join(self.project_dir, "figures")
         prisma_prefix = os.path.join(fig_dir, "Figure1_PRISMA_2020_Flow_Diagram")
         forest_prefix = os.path.join(fig_dir, "Figure2_Forest_Plot_Mortality")
+        if production:
+            discussion_paragraphs = [
+                "Interpret the locked production estimates with the approved risk-of-bias and certainty assessment.",
+                (
+                    "Network ranking is reported from the locked production NMA and should be interpreted with its "
+                    "reported uncertainty."
+                    if nma_planned
+                    else "No network meta-analysis was planned for this review."
+                ),
+            ]
+        else:
+            discussion_paragraphs = [
+                "This QA fixture does not support a clinical conclusion; interpret only after locked-engine synthesis and independent review.",
+                "Network ranking is not released from the bundled QA calculator.",
+            ]
 
         # 1. Word Docx Manuscript
         ms_data = {
@@ -280,9 +707,9 @@ class SOPPipeline:
             "affiliations": ["International Evidence Synthesis and Methodological Center"],
             "abstract": {
                 "Background": "Septic shock remains a prominent cause of mortality in the ICU. The relative efficacy and safety of various corticosteroid regimens remain debated.",
-                "Methods": "We searched PubMed, Embase, Cochrane CENTRAL, and Web of Science for randomized controlled trials comparing corticosteroids against placebo or head-to-head. Random-effects pairwise and contrast-based network meta-analyses were performed.",
-                "Results": f"Across {flow_data.get('studies_included', 29)} randomized controlled trials enrolling {sum(s.get('total_treatment', 0) + s.get('total_control', 0) for s in dataset):,} patients, corticosteroids demonstrated a reduction in 28-day mortality (OR {ma_result['pooled_estimate']:.2f}, 95% CI [{ma_result['ci_lower']:.2f}, {ma_result['ci_upper']:.2f}], I² = {ma_result['i2_percent']:.1f}%).",
-                "Conclusions": "Adjunctive corticosteroid therapy improves clinical shock reversal and reduces short-term mortality in septic shock."
+                "Methods": methods_summary,
+                "Results": pairwise_summary,
+                "Conclusions": conclusions_summary
             },
             "sections": [
                 {
@@ -320,10 +747,7 @@ class SOPPipeline:
                 },
                 {
                     "heading": "Discussion",
-                    "paragraphs": [
-                        "Our findings provide robust evidence supporting the therapeutic value of corticosteroid therapy in accelerating shock resolution.",
-                        "The network meta-analysis demonstrates that combination therapy with hydrocortisone and fludrocortisone achieves superior SUCRA ranking."
-                    ]
+                    "paragraphs": discussion_paragraphs
                 }
             ]
         }
@@ -341,25 +765,18 @@ class SOPPipeline:
                     for s in dataset
                 ]
             },
-            "Primary_Outcome_Mortality": {
+            ("Primary_Outcome_Mortality" if production else "QA_Primary_Outcome_Mortality"): {
                 "headers": ["Study ID", "Events Treat", "Total Treat", "Events Ctrl", "Total Ctrl", "Odds Ratio", "CI Lower", "CI Upper"],
-                "rows": [
-                    [s["study_id"], s["events_treatment"], s["total_treatment"], s["events_control"], s["total_control"],
-                     round(s.get("effect_size", 1.0), 3), round(s.get("ci_lower", 0.8), 3), round(s.get("ci_upper", 1.2), 3)]
-                    for s in dataset
-                ],
+                "rows": primary_rows,
                 "has_summary_row": True,
                 "numeric_cols": [2, 3, 4, 5]
             },
-            "SUCRA_Rankings": {
-                "headers": ["Treatment Regimen", "Rank", "SUCRA Score (%)", "OR vs Placebo", "CI Lower", "CI Upper"],
-                "rows": [
-                    [r["treatment"], r["rank"], round(r["sucra_percent"], 1),
-                     round(r["relative_or_vs_ref"], 2), round(r["ci_lower"], 2), round(r["ci_upper"], 2)]
-                    for r in nma_result["rankings"]
-                ]
-            }
         }
+        if nma_planned:
+            excel_sheets["NMA_Rankings" if production else "QA_Rankings_Not_Production_NMA"] = {
+                "headers": ["Treatment Regimen", "Rank", "SUCRA Score (%)", "OR vs Placebo", "CI Lower", "CI Upper"],
+                "rows": nma_rows,
+            }
         xlsx_path = os.path.join(office_dir, "Master_Research_Database.xlsx")
         MasterExcelGenerator.generate(excel_sheets, xlsx_path)
 
@@ -389,17 +806,23 @@ class SOPPipeline:
                 {
                     "title": "Primary Outcome: 28-Day Mortality",
                     "bullet_points": [
-                        f"Corticosteroids significantly reduce 28-day mortality (OR {ma_result['pooled_estimate']:.2f}, 95% CI [{ma_result['ci_lower']:.2f}, {ma_result['ci_upper']:.2f}]).",
-                        f"Heterogeneity across trials: I² = {ma_result['i2_percent']:.1f}%, τ² = {ma_result['tau2']:.3f}.",
-                        "Combination of hydrocortisone and fludrocortisone achieved highest SUCRA ranking."
+                        pairwise_summary,
+                        (f"Heterogeneity across trials: I² = {ma_result['i2_percent']:.1f}%, τ² = {ma_result['tau2']:.3f}."
+                         if pairwise_planned else "No pairwise heterogeneity summary was planned."),
+                        (("Treatment ranking is reported from the locked production NMA."
+                          if production else "Treatment ranking is not released from the bundled QA calculation.")
+                         if nma_planned else "No NMA ranking was planned for this review.")
                     ],
                     "image_path": f"{forest_prefix}.png"
                 },
                 {
                     "title": "Clinical Implications & Recommendations",
                     "bullet_points": [
-                        "Supportive evidence for adjunctive corticosteroids in refractory septic shock.",
-                        "Hydrocortisone + fludrocortisone regimen provides maximal mortality benefit.",
+                        ("Locked production synthesis supplied; interpret estimates with the approved certainty assessment."
+                         if production else "QA fixture only; no clinical recommendation is released."),
+                        (("NMA ranking supplied by the locked production engine."
+                          if production else "No treatment ranking or clinical recommendation is released from this QA fixture.")
+                         if nma_planned else "No treatment ranking was planned for this review."),
                         "All artifacts published in 6 open, reproducible, and verifiable formats."
                     ]
                 }
@@ -468,7 +891,10 @@ class SOPPipeline:
     # -------------------------------------------------------------------------
     # Master Sequential Orchestrator
     # -------------------------------------------------------------------------
-    def run_all(self, config_pico_path: str, data_path: str) -> Dict[str, Any]:
+    def run_all(
+        self, config_pico_path: str, data_path: str, production: bool = False,
+        production_results_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Execute all 6 stages sequentially with strict gated verification.
         If ANY stage fails its acceptance gate, execution is aborted immediately.
@@ -484,12 +910,18 @@ class SOPPipeline:
         ma_result, nma_result, dataset = self.step3_extract_and_synthesize(data_path)
 
         # Step 4
-        fig_info = self.step4_render_figures(flow_data, ma_result, dataset)
+        fig_info = self.step4_render_figures(
+            flow_data, ma_result, dataset, production=production,
+            production_results_path=production_results_path,
+        )
 
         # Step 5
         with open(config_pico_path, "r", encoding="utf-8") as f:
             pico_config = json.load(f)
-        office_info = self.step5_office_suite(pico_config, flow_data, ma_result, nma_result, dataset)
+        office_info = self.step5_office_suite(
+            pico_config, flow_data, ma_result, nma_result, dataset, production=production,
+            production_results_path=production_results_path,
+        )
 
         # Step 6
         final_info = self.step6_audit_and_peer_review(pico_config)

@@ -28,7 +28,7 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
 2. **Mandatory 5-Tier Verification Gates**:
    - **Gate 1**: Boolean search syntax & PRISMA 2020 mathematical flow conservation ($L \equiv 0$).
    - **Gate 2**: Primary evidence provenance, DOI/PMID/PMCID cryptographic cross-lock, and coordinate anchoring.
-   - **Gate 3**: Statistical consistency (REML/DL, Knapp-Hartung, Logit bounded transformations).
+   - **Gate 3**: Protocol-declared statistical consistency (effect scale, estimator, interval method, heterogeneity, and bounded-outcome transformations); production synthesis follows the statistical methods/software contract.
    - **Gate 4**: Zero-raster code rendering, live-text SVG (`<text>`), Type 42 vector PDF font embedding, anti-collision bounding boxes.
    - **Gate 5**: Word docx XML `<w:tblHeader/>` and `<w:cantSplit/>` table engineering, Master Excel dynamic formulas (`=SUM`, `=AVERAGE`).
 3. **Four Core Medical Literature Databases**:
@@ -126,7 +126,7 @@ sci-nma-reproduction/
 │   ├── scopus-search/                 # Scopus proximity indexing
 │   ├── ai-reviewer/                   # Top journal AI Peer Reviewer simulation
 │   └── lit-intelligence-mining/       # Forward/backward citation intelligence mining
-├── sci_nma_agent/                     # Production Python Engine
+├── sci_nma_agent/                     # Workflow, provenance, and statistical QA package
 │   ├── core/                          # 5-Tier Verification Gate System
 │   ├── databases/                     # 4 Core Database Query Builders & Clients
 │   ├── meta_engine/                   # Pairwise, NMA, Logit, Meta-Regression, Bias
@@ -292,7 +292,7 @@ The framework strictly enforces the **Anti-Shortcut Protocol**: Every single pha
    - **产出**：结构化筛选流向数据（检出、去重、初筛、索取、评估、纳入）。
    - **验收检查点 (Checkpoint 2 / Gate 1)**：严格核验 PRISMA 数学闭环，保证流向损耗绝对归零（$L \equiv 0$），初筛与全文排除细项加和 100% 守恒。
 3. **第三步（Stage 3 数据抽取与统计精算）**：
-   - **产出**：基线数据、2x2 四格表、成对 Meta 分析、网状 Meta 分析（NMA）及 SUCRA 概率矩阵。
+   - **产出**：基线数据、2x2 四格表和统计 QA 结果；正式成对 Meta/NMA 结果必须由 protocol 声明并锁定的 R/Stata/验证引擎生成，并通过 `analysis_manifest.json` 门禁。
    - **验收检查点 (Checkpoint 3 / Gate 2 & 3)**：Gate 2 真实性核验（100% 检验 DOI 结构、PMID 及坐标锚定，零 mock 伪造）；Gate 3 统计自洽性核验（样本量守恒、95% CI 正确包裹、AUROC/患病率强制 Logit 正态尺度转换）。
 4. **第四步（Stage 4 纯矢量图件代码渲染）**：
    - **产出**：PRISMA 2020 流程图、亚组高密度森林图、网状拓扑图。

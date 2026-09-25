@@ -1,6 +1,8 @@
 """
 Publication Bias & Funnel Plot Asymmetry Engine.
-Implements Egger's linear regression test, Begg's rank correlation test, and Trim-and-Fill.
+Implements exploratory Egger and Begg diagnostics. Trim-and-fill is not
+implemented; small-study diagnostics remain protocol- and study-count
+dependent.
 """
 
 from typing import List, Dict, Any, Tuple
@@ -20,8 +22,8 @@ class PublicationBiasEngine:
         alpha != 0 indicates funnel plot asymmetry.
         """
         k = len(yi)
-        if k < 3:
-            return {"k": k, "intercept": 0.0, "p_value": 1.0, "interpretation": "Insufficient studies (<3)"}
+        if k < 10:
+            return {"k": k, "intercept": 0.0, "p_value": 1.0, "interpretation": "Not assessed: fewer than 10 studies"}
 
         y = np.array(yi, dtype=float)
         se = np.sqrt(np.array(vi, dtype=float))
@@ -29,8 +31,21 @@ class PublicationBiasEngine:
         z = y / se          # Standardized effect
         prec = 1.0 / se     # Precision
 
-        # OLS regression: z = alpha + beta * prec
-        slope, intercept, r_val, p_val, std_err = stats.linregress(prec, z)
+        # OLS regression: z = alpha + beta * prec. Test the intercept, not
+        # the slope, using the residual degrees of freedom.
+        X = np.column_stack([np.ones(k), prec])
+        try:
+            xtx_inv = np.linalg.inv(X.T @ X)
+        except np.linalg.LinAlgError:
+            return {"k": k, "intercept": 0.0, "p_value": 1.0, "interpretation": "Not assessed: singular precision values"}
+        beta = xtx_inv @ X.T @ z
+        residuals = z - X @ beta
+        df = k - 2
+        residual_variance = float(np.sum(residuals ** 2) / df) if df > 0 else 0.0
+        intercept = float(beta[0])
+        intercept_se = math.sqrt(max(0.0, residual_variance * xtx_inv[0, 0]))
+        t_statistic = intercept / intercept_se if intercept_se > 0 else 0.0
+        p_val = float(2.0 * stats.t.sf(abs(t_statistic), df)) if df > 0 else 1.0
 
         has_bias = (p_val < 0.05)
         interp = "Significant asymmetry detected (p < 0.05)" if has_bias else "No significant asymmetry (p >= 0.05)"
@@ -38,8 +53,8 @@ class PublicationBiasEngine:
         return {
             "k": k,
             "intercept_alpha": float(intercept),
-            "intercept_se": float(std_err),
-            "t_statistic": float(intercept / std_err) if std_err > 0 else 0.0,
+            "intercept_se": float(intercept_se),
+            "t_statistic": float(t_statistic),
             "p_value": float(p_val),
             "has_bias": has_bias,
             "interpretation": interp
@@ -52,8 +67,8 @@ class PublicationBiasEngine:
         Kendall's tau between standardized effect size and variance.
         """
         k = len(yi)
-        if k < 3:
-            return {"k": k, "tau": 0.0, "p_value": 1.0}
+        if k < 10:
+            return {"k": k, "tau": 0.0, "p_value": 1.0, "interpretation": "Not assessed: fewer than 10 studies"}
 
         y = np.array(yi, dtype=float)
         v = np.array(vi, dtype=float)

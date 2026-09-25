@@ -37,9 +37,12 @@ effect estimates, model, or figure contents as new-review data.
 6. Pilot the extraction form; preserve paired extraction/verification,
    report/page/table/figure locators, transformations, and unresolved data.
 7. Assess risk of bias using design- and result-appropriate methods; decide
-   compatibility before synthesis; prespecify analysis, diagnostics, and
-   sensitivity decisions. Assess certainty and report under the applicable
-   framework.
+   compatibility before synthesis; apply the [statistical methods and software
+   contract](../../../docs/STATISTICAL_METHODS_AND_SOFTWARE.md), create
+   `analysis_manifest.json`, and prespecify analysis, diagnostics, and
+   sensitivity decisions. Use the bundled Python engines only for QA; formal
+   synthesis must come from the locked production engine named in the protocol.
+   Assess certainty and report under the applicable framework.
 
 ## Stage Control
 

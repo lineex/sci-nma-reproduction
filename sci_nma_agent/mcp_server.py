@@ -70,7 +70,7 @@ def main():
         },
         {
             "name": "run_pairwise_meta",
-            "description": "Execute random-effects or fixed-effect pairwise meta-analysis with Knapp-Hartung adjustment.",
+            "description": "Run the bundled exploratory pairwise QA calculator; production synthesis must use the locked protocol-declared engine and analysis manifest.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

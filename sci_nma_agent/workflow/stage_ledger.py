@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from .protocol_validation import (
+    validate_analysis_manifest_file,
     validate_fact_status_manifest_file,
     validate_full_text_screening_manifest_file,
     validate_full_text_retrieval_manifest_file,
@@ -657,6 +658,66 @@ class AgentStageLedger:
                 )
                 if fact_errors:
                     raise StageLedgerError("Fact-status validation failed: " + "; ".join(fact_errors))
+            elif stage_id == "synthesis":
+                approved_protocol_records = [
+                    record
+                    for record in ledger["stages"]["protocol"].get("artifact_manifest", [])
+                    if Path(record["path"]).name == "review_protocol.json"
+                ]
+                if len(approved_protocol_records) != 1:
+                    raise StageLedgerError("Approved protocol evidence must contain exactly one review_protocol.json")
+                protocol_path = self.project_dir / approved_protocol_records[0]["path"]
+                try:
+                    approved_protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    raise StageLedgerError(f"Unable to read approved review protocol: {exc}") from exc
+                declared_path = approved_protocol.get("synthesis", {}).get("analysis_manifest_path")
+                analysis_paths = [
+                    self.project_dir / record["path"]
+                    for record in artifact_manifest
+                    if record["path"] == declared_path
+                ]
+                if len(analysis_paths) != 1:
+                    raise StageLedgerError(
+                        "Synthesis stage must submit exactly one analysis_manifest.json at the protocol-declared path"
+                    )
+                try:
+                    analysis_data = json.loads(analysis_paths[0].read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    raise StageLedgerError(f"Unable to read analysis manifest: {exc}") from exc
+                required_paths = {
+                    analysis_paths[0].relative_to(self.project_dir).as_posix(),
+                    str(analysis_data.get("input_snapshot_path", "")),
+                    *(
+                        str(path)
+                        for path in analysis_data.get("software", {}).get("runtime_lock_paths", [])
+                        if isinstance(path, str)
+                    ),
+                    *(
+                        str(item.get("path", ""))
+                        for item in analysis_data.get("outputs", [])
+                        if isinstance(item, dict)
+                    ),
+                    *(
+                        str(item.get("path", ""))
+                        for item in analysis_data.get("intermediate_outputs", [])
+                        if isinstance(item, dict)
+                    ),
+                }
+                submitted_paths = {record["path"] for record in artifact_manifest}
+                missing_paths = sorted(path for path in required_paths if path and path not in submitted_paths)
+                if missing_paths:
+                    raise StageLedgerError(
+                        "Synthesis stage must submit the analysis manifest, input snapshot, and every declared "
+                        f"result artifact: missing {missing_paths}"
+                    )
+                analysis_errors = validate_analysis_manifest_file(
+                    analysis_paths[0], self.project_dir, protocol_path=protocol_path
+                )
+                if analysis_errors:
+                    raise StageLedgerError("Analysis manifest validation failed: " + "; ".join(analysis_errors))
+                if analysis_data.get("protocol_sha256") != approved_protocol_records[0].get("sha256"):
+                    raise StageLedgerError("Analysis manifest protocol_sha256 does not match the approved protocol artifact")
             stage["artifact_manifest"] = artifact_manifest
             stage["summary"] = summary
             stage["submitted_at"] = _now()
@@ -787,6 +848,8 @@ class AgentStageLedger:
     def _assert_all_recorded_evidence_current(self, ledger: Dict[str, Any]) -> None:
         for stage_id, stage in ledger["stages"].items():
             self._assert_manifest_current(stage.get("artifact_manifest", []), stage_id, "stage artifact")
+            if stage_id == "synthesis" and stage.get("artifact_manifest"):
+                self._assert_synthesis_manifest_current(stage)
             for review in stage.get("reviews", []):
                 self._assert_manifest_current([review["report"]], stage_id, "review report")
             for attempt in stage.get("attempts", []):
@@ -824,6 +887,8 @@ class AgentStageLedger:
         self._assert_manifest_current(stage.get("artifact_manifest", []), stage_id, "approved artifact")
         for review in stage.get("reviews", []):
             self._assert_manifest_current([review["report"]], stage_id, "review report")
+        if stage_id == "synthesis" and stage.get("artifact_manifest"):
+            self._assert_synthesis_manifest_current(stage)
 
     def _assert_manifest_current(self, manifest: List[Dict[str, Any]], stage_id: str, kind: str) -> None:
         for record in manifest:
@@ -838,6 +903,49 @@ class AgentStageLedger:
                 or _sha256(path) != record.get("sha256")
             ):
                 raise StageLedgerError(f"{kind.title()} changed after submission for stage '{stage_id}': {record['path']}")
+
+    def _assert_synthesis_manifest_current(self, stage: Dict[str, Any]) -> None:
+        """Re-validate nested input/output hashes whenever active synthesis evidence is read."""
+        records = [
+            record for record in stage.get("artifact_manifest", [])
+            if Path(record.get("path", "")).name == "analysis_manifest.json"
+        ]
+        if len(records) != 1:
+            raise StageLedgerError("Synthesis evidence must contain exactly one analysis_manifest.json")
+        protocol_records = [
+            record for record in self.load()["stages"]["protocol"].get("artifact_manifest", [])
+            if Path(record.get("path", "")).name == "review_protocol.json"
+        ]
+        if len(protocol_records) != 1:
+            raise StageLedgerError("Approved protocol evidence must contain exactly one review_protocol.json")
+        manifest_path = self.project_dir / records[0]["path"]
+        protocol_path = self.project_dir / protocol_records[0]["path"]
+        errors = validate_analysis_manifest_file(manifest_path, self.project_dir, protocol_path=protocol_path)
+        if errors:
+            raise StageLedgerError("Analysis manifest evidence is stale or inconsistent: " + "; ".join(errors))
+        try:
+            analysis_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise StageLedgerError(f"Unable to read analysis manifest evidence: {exc}") from exc
+        required_paths = {
+            records[0]["path"],
+            str(analysis_data.get("input_snapshot_path", "")),
+            *(
+                str(path)
+                for path in analysis_data.get("software", {}).get("runtime_lock_paths", [])
+                if isinstance(path, str)
+            ),
+            *(str(item.get("path", "")) for item in analysis_data.get("outputs", []) if isinstance(item, dict)),
+            *(
+                str(item.get("path", ""))
+                for item in analysis_data.get("intermediate_outputs", [])
+                if isinstance(item, dict)
+            ),
+        }
+        submitted_paths = {record.get("path") for record in stage.get("artifact_manifest", [])}
+        missing_paths = sorted(path for path in required_paths if path and path not in submitted_paths)
+        if missing_paths:
+            raise StageLedgerError(f"Synthesis evidence is missing declared artifacts: {missing_paths}")
 
     def _archive_active_evidence(self, ledger: Dict[str, Any], stage_id: str) -> None:
         stage = ledger["stages"][stage_id]

@@ -514,6 +514,27 @@ def _is_safe_project_relative_path(value: Any) -> bool:
     )
 
 
+def _canonical_contract_value(value: Any) -> str:
+    """Normalize a protocol/manifest decision for exact contract comparison."""
+    if isinstance(value, list):
+        return "[" + ",".join(_canonical_contract_value(item) for item in value) + "]"
+    if isinstance(value, dict):
+        return "{" + ",".join(
+            f"{_canonical_contract_value(key)}:{_canonical_contract_value(item)}"
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]).casefold())
+        ) + "}"
+    return re.sub(r"\s+", " ", str(value).strip()).casefold()
+
+
+def _contract_value_filled(value: Any) -> bool:
+    """Return whether a scalar or structured protocol decision is populated."""
+    if isinstance(value, list):
+        return bool(value) and all(_contract_value_filled(item) for item in value)
+    if isinstance(value, dict):
+        return bool(value) and all(_contract_value_filled(item) for item in value.values())
+    return _is_filled(value)
+
+
 def _manifest_report_pairs(records: Any) -> set[tuple[str, str]]:
     if not isinstance(records, list):
         return set()
@@ -1009,6 +1030,7 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
         errors.append("methods_sources.chapter_scope_rationale must explain the selected Handbook scope")
 
     for path in (
+        "project.id",
         "project.title",
         "project.lead",
         "project.created_date",
@@ -1051,6 +1073,11 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
         "synthesis.sensitivity_analysis_rationale",
         "synthesis.small_study_effects_plan",
         "synthesis.software_and_version",
+        "synthesis.analysis_manifest_path",
+        "synthesis.software.primary_engine.name",
+        "synthesis.software.primary_engine.version",
+        "synthesis.software.primary_engine.role",
+        "synthesis.software.random_seed",
         "certainty.framework",
         "certainty.downgrade_upgrade_rules",
         "agent_governance.human_accountable_lead",
@@ -1072,8 +1099,38 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
         "synthesis.synthesis_groups",
         "synthesis.heterogeneity_assessment",
         "certainty.critical_outcomes",
+        "synthesis.software.primary_engine.packages",
+        "synthesis.software.runtime_lock_paths",
+        "synthesis.software.certainty_tools",
     ):
         _need_list(protocol, path, errors)
+
+    primary_packages = _value(protocol, "synthesis.software.primary_engine.packages")
+    if isinstance(primary_packages, list) and not primary_packages:
+        errors.append("synthesis.software.primary_engine.packages must contain package names and versions")
+    elif isinstance(primary_packages, list) and any(
+        not isinstance(package, str) or not re.search(r"\d", package)
+        for package in primary_packages
+    ):
+        errors.append("synthesis.software.primary_engine.packages must include explicit package versions")
+    primary_engine_name = _value(protocol, "synthesis.software.primary_engine.name")
+    if isinstance(primary_engine_name, str) and primary_engine_name.strip().casefold() in {"python", "python3"}:
+        errors.append(
+            "synthesis.software.primary_engine cannot be Python; use a locked production "
+            "R/Stata/validated synthesis engine and reserve Python for orchestration and QA"
+        )
+    certainty_tools = _value(protocol, "synthesis.software.certainty_tools")
+    if isinstance(certainty_tools, list) and not certainty_tools:
+        errors.append("synthesis.software.certainty_tools must declare the tool used for certainty assessment")
+    runtime_lock_paths = _value(protocol, "synthesis.software.runtime_lock_paths")
+    if isinstance(runtime_lock_paths, list):
+        if not runtime_lock_paths:
+            errors.append("synthesis.software.runtime_lock_paths must declare at least one lock file")
+        for index, lock_path in enumerate(runtime_lock_paths):
+            if not _is_safe_project_relative_path(lock_path):
+                errors.append(
+                    f"synthesis.software.runtime_lock_paths[{index}] must be a safe project-relative path"
+                )
 
     _need_two_distinct(protocol, "selection.title_abstract_reviewers", errors)
     _need_two_distinct(protocol, "selection.full_text_reviewers", errors)
@@ -1126,6 +1183,20 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
     effect_measures = _value(protocol, "synthesis.effect_measures")
     if not isinstance(effect_measures, dict) or not effect_measures or any(not _is_filled(v) for v in effect_measures.values()):
         errors.append("synthesis.effect_measures must map each planned outcome/group to an effect measure")
+
+    manifest_path = _value(protocol, "synthesis.analysis_manifest_path")
+    if not _is_safe_project_relative_path(manifest_path):
+        errors.append("synthesis.analysis_manifest_path must be a safe project-relative path")
+    elif PurePosixPath(manifest_path).name != "analysis_manifest.json":
+        errors.append("synthesis.analysis_manifest_path must name analysis_manifest.json")
+
+    pairwise_plan = _value(protocol, "synthesis.pairwise_meta_analysis")
+    if pairwise_plan is None:
+        errors.append("synthesis.pairwise_meta_analysis must be declared")
+    elif not isinstance(pairwise_plan, dict) or not isinstance(pairwise_plan.get("enabled"), bool):
+        errors.append("synthesis.pairwise_meta_analysis.enabled must be an explicit boolean")
+    elif not pairwise_plan["enabled"] and not _is_filled(pairwise_plan.get("not_planned_rationale")):
+        errors.append("synthesis.pairwise_meta_analysis.not_planned_rationale is required when pairwise synthesis is disabled")
 
     registration = protocol.get("registration")
     if not isinstance(registration, dict) or registration.get("status") not in ("registered", "submitted", "not_registered"):
@@ -1184,6 +1255,7 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
             "transitivity_assessment",
             "network_connectivity_and_geometry",
             "incoherence_assessment",
+            "model_specification",
             "model_and_multi_arm_handling",
             "ranking_interpretation",
             "certainty_framework",
@@ -1200,6 +1272,395 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
         errors.append("agent_governance must require two independent stage reviews")
     if isinstance(governance, dict) and governance.get("executor_reviews_own_stage") is not False:
         errors.append("agent_governance.executor_reviews_own_stage must be false")
+    return errors
+
+
+def validate_analysis_manifest(manifest: Dict[str, Any]) -> List[str]:
+    """Validate the machine-readable synthesis methods and runtime record."""
+    errors: List[str] = []
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+        return ["analysis manifest schema_version must be 1"]
+    if manifest.get("stage_id") != "synthesis":
+        errors.append("analysis manifest stage_id must be synthesis")
+    for field in ("project_id", "code_commit"):
+        if not _is_filled(manifest.get(field)):
+            errors.append(f"analysis manifest {field} must be completed")
+    for field in ("protocol_sha256", "input_snapshot_sha256"):
+        if not _SHA256.fullmatch(str(manifest.get(field, ""))):
+            errors.append(f"analysis manifest {field} must be a SHA-256 hash")
+    input_snapshot_path = manifest.get("input_snapshot_path")
+    if not _is_safe_project_relative_path(input_snapshot_path):
+        errors.append("analysis manifest input_snapshot_path must be project-relative")
+    estimands = manifest.get("estimands")
+    if not isinstance(estimands, list) or not estimands or any(not _is_filled(item) for item in estimands):
+        errors.append("analysis manifest estimands must contain at least one completed estimand")
+    effect_map = manifest.get("effect_measure_by_outcome")
+    if not isinstance(effect_map, dict) or not effect_map or any(not _is_filled(value) for value in effect_map.values()):
+        errors.append("analysis manifest effect_measure_by_outcome must map outcomes to effect measures")
+
+    pairwise = manifest.get("pairwise")
+    if not isinstance(pairwise, dict):
+        errors.append("analysis manifest pairwise must be an object")
+    else:
+        pairwise_planned = pairwise.get("planned", True)
+        if not isinstance(pairwise_planned, bool):
+            errors.append("analysis manifest pairwise.planned must be an explicit boolean")
+            pairwise_planned = True
+        if pairwise_planned:
+            for field in (
+                "primary_model",
+                "primary_estimator",
+                "interval_method",
+                "zero_event_rule",
+                "multi_arm_and_dependency_rule",
+                "missing_data_rule",
+                "prediction_interval",
+            ):
+                if not _is_filled(pairwise.get(field)):
+                    errors.append(f"analysis manifest pairwise.{field} must be completed")
+            if not isinstance(pairwise.get("heterogeneity_statistics"), list) or not pairwise["heterogeneity_statistics"]:
+                errors.append("analysis manifest pairwise.heterogeneity_statistics must be a non-empty list")
+            if not isinstance(pairwise.get("sensitivity_analyses"), list):
+                errors.append("analysis manifest pairwise.sensitivity_analyses must be a list")
+        elif not _is_filled(pairwise.get("not_planned_rationale")):
+            errors.append("analysis manifest pairwise.not_planned_rationale is required when pairwise synthesis is not planned")
+
+    nma = manifest.get("network_meta_analysis")
+    if not isinstance(nma, dict) or not isinstance(nma.get("planned"), bool):
+        errors.append("analysis manifest network_meta_analysis.planned must be an explicit boolean")
+    elif nma["planned"]:
+        for field in (
+            "model",
+            "node_definitions",
+            "connectivity",
+            "transitivity",
+            "transitivity_effect_modifiers",
+            "inconsistency",
+            "multi_arm_covariance",
+            "heterogeneity",
+            "ranking_uncertainty",
+            "certainty_method",
+            "assumption_failure_plan",
+        ):
+            if field == "transitivity_effect_modifiers":
+                if not isinstance(nma.get(field), list) or not nma[field] or any(not _is_filled(item) for item in nma[field]):
+                    errors.append("analysis manifest network_meta_analysis.transitivity_effect_modifiers must be a non-empty list")
+            elif not _is_filled(nma.get(field)):
+                errors.append(f"analysis manifest network_meta_analysis.{field} must be completed when NMA is planned")
+    elif not _is_filled(nma.get("not_planned_rationale")):
+        errors.append("analysis manifest network_meta_analysis.not_planned_rationale is required when NMA is not planned")
+
+    software = manifest.get("software")
+    if not isinstance(software, dict):
+        errors.append("analysis manifest software must be an object")
+    else:
+        primary = software.get("primary_engine")
+        if not isinstance(primary, dict):
+            errors.append("analysis manifest software.primary_engine must be an object")
+        else:
+            for field in ("name", "version", "role"):
+                if not _is_filled(primary.get(field)):
+                    errors.append(f"analysis manifest software.primary_engine.{field} must be completed")
+            if not isinstance(primary.get("packages"), list) or not primary["packages"]:
+                errors.append("analysis manifest software.primary_engine.packages must be a non-empty list")
+            elif any(
+                not isinstance(package, str) or not re.search(r"\d", package)
+                for package in primary["packages"]
+            ):
+                errors.append(
+                    "analysis manifest software.primary_engine.packages must include explicit package versions"
+                )
+            if str(primary.get("name", "")).strip().casefold() in {"python", "python3"}:
+                errors.append(
+                    "analysis manifest software.primary_engine cannot be Python; use a locked production "
+                    "R/Stata/validated synthesis engine and reserve Python for orchestration and QA"
+                )
+        if not isinstance(software.get("verification_engines"), list):
+            errors.append("analysis manifest software.verification_engines must be a list")
+        if not isinstance(software.get("certainty_tools"), list) or not software["certainty_tools"]:
+            errors.append("analysis manifest software.certainty_tools must be a non-empty list")
+        if not isinstance(software.get("runtime_lock_paths"), list) or not software["runtime_lock_paths"]:
+            errors.append("analysis manifest software.runtime_lock_paths must be a non-empty list")
+        elif any(not _is_safe_project_relative_path(item) for item in software["runtime_lock_paths"]):
+            errors.append("analysis manifest software.runtime_lock_paths must contain safe project-relative paths")
+        if not _is_filled(software.get("random_seed")):
+            errors.append("analysis manifest software.random_seed must record a seed or deterministic-analysis rationale")
+
+    outputs = manifest.get("outputs")
+    if not isinstance(outputs, list) or not outputs:
+        errors.append("analysis manifest outputs must contain at least one output record")
+    else:
+        for index, output in enumerate(outputs):
+            if not isinstance(output, dict) or not _is_safe_project_relative_path(output.get("path")):
+                errors.append(f"analysis manifest outputs[{index}].path must be project-relative")
+            if not isinstance(output, dict) or not _SHA256.fullmatch(str(output.get("sha256", ""))):
+                errors.append(f"analysis manifest outputs[{index}].sha256 must be a SHA-256 hash")
+    if not isinstance(manifest.get("diagnostics"), list):
+        errors.append("analysis manifest diagnostics must be a list")
+    if not isinstance(manifest.get("deviations"), list):
+        errors.append("analysis manifest deviations must be a list")
+    declared_paths = []
+    for item in list(manifest.get("outputs", [])) + list(manifest.get("intermediate_outputs", [])):
+        if isinstance(item, dict) and _is_safe_project_relative_path(item.get("path")):
+            declared_paths.append(item["path"])
+    if len(declared_paths) != len(set(declared_paths)):
+        errors.append("analysis manifest output and intermediate paths must be unique")
+    intermediate_outputs = manifest.get("intermediate_outputs", [])
+    if not isinstance(intermediate_outputs, list):
+        errors.append("analysis manifest intermediate_outputs must be a list")
+    else:
+        for index, output in enumerate(intermediate_outputs):
+            if not isinstance(output, dict) or not _is_safe_project_relative_path(output.get("path")):
+                errors.append(f"analysis manifest intermediate_outputs[{index}].path must be project-relative")
+            if not isinstance(output, dict) or not _SHA256.fullmatch(str(output.get("sha256", ""))):
+                errors.append(f"analysis manifest intermediate_outputs[{index}].sha256 must be a SHA-256 hash")
+    convergence = manifest.get("convergence", {})
+    if not isinstance(convergence, dict):
+        errors.append("analysis manifest convergence must be an object")
+    elif convergence and not _is_filled(convergence.get("status")):
+        errors.append("analysis manifest convergence.status must be completed when convergence is recorded")
+    return errors
+
+
+def validate_analysis_manifest_file(
+    path: Union[str, Path],
+    project_dir: Optional[Union[str, Path]] = None,
+    protocol_path: Optional[Union[str, Path]] = None,
+) -> List[str]:
+    try:
+        manifest = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"Unable to read analysis manifest JSON: {exc}"]
+    errors = validate_analysis_manifest(manifest)
+    if project_dir is None or not isinstance(manifest, dict):
+        return errors
+    project = Path(project_dir).expanduser().resolve()
+    records = [("output", output) for output in manifest.get("outputs", [])]
+    records.extend(("intermediate output", output) for output in manifest.get("intermediate_outputs", []))
+    for index, (label, output) in enumerate(records):
+        if not isinstance(output, dict) or not _is_safe_project_relative_path(output.get("path")):
+            continue
+        output_path = (project / Path(*PurePosixPath(output["path"]).parts)).resolve()
+        try:
+            output_path.relative_to(project)
+        except ValueError:
+            errors.append(f"analysis manifest {label}[{index}].path escaped the review project")
+            continue
+        if not output_path.is_file():
+            errors.append(f"analysis manifest {label} file is missing: {output['path']}")
+            continue
+        actual_hash = hashlib.sha256(output_path.read_bytes()).hexdigest()
+        if actual_hash != str(output.get("sha256", "")).lower():
+            errors.append(f"analysis manifest {label}[{index}].sha256 does not match its file")
+
+    if _is_safe_project_relative_path(manifest.get("input_snapshot_path")):
+        input_path = (project / Path(*PurePosixPath(manifest["input_snapshot_path"]).parts)).resolve()
+        try:
+            input_path.relative_to(project)
+        except ValueError:
+            errors.append("analysis manifest input_snapshot_path escaped the review project")
+        else:
+            if not input_path.is_file():
+                errors.append(f"analysis manifest input snapshot file is missing: {manifest['input_snapshot_path']}")
+            elif hashlib.sha256(input_path.read_bytes()).hexdigest() != str(manifest.get("input_snapshot_sha256", "")).lower():
+                errors.append("analysis manifest input_snapshot_sha256 does not match its file")
+
+    # A release manifest must point to lock files that are actually archived in
+    # the review project. The standalone schema validator intentionally only
+    # checks the declaration; protocol-bound validation checks the bytes.
+    if protocol_path is not None and isinstance(manifest.get("software"), dict):
+        runtime_paths = manifest["software"].get("runtime_lock_paths", [])
+        if isinstance(runtime_paths, list):
+            for index, lock_path in enumerate(runtime_paths):
+                if not _is_safe_project_relative_path(lock_path):
+                    continue
+                lock_file = (project / Path(*PurePosixPath(lock_path).parts)).resolve()
+                try:
+                    lock_file.relative_to(project)
+                except ValueError:
+                    errors.append(f"analysis manifest runtime lock [{index}] escaped the review project")
+                    continue
+                if not lock_file.is_file():
+                    errors.append(f"analysis manifest runtime lock file is missing: {lock_path}")
+
+    if protocol_path is not None:
+        try:
+            protocol = json.loads(Path(protocol_path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            errors.append(f"Unable to read approved review protocol for analysis binding: {exc}")
+        else:
+            errors.extend(validate_analysis_manifest_binding(manifest, protocol, path, project))
+    return errors
+
+
+def validate_analysis_manifest_binding(
+    manifest: Dict[str, Any],
+    protocol: Dict[str, Any],
+    manifest_path: Optional[Union[str, Path]] = None,
+    project_dir: Optional[Union[str, Path]] = None,
+) -> List[str]:
+    """Check synthesis decisions against the approved protocol declaration."""
+    errors: List[str] = []
+    if not isinstance(protocol, dict):
+        return ["approved review protocol must be a JSON object"]
+
+    protocol_project = protocol.get("project") if isinstance(protocol.get("project"), dict) else {}
+    protocol_project_id = protocol_project.get("id")
+    if _is_filled(protocol_project_id) and manifest.get("project_id") != protocol_project_id:
+        errors.append("analysis manifest project_id does not match the approved protocol project.id")
+
+    synthesis = protocol.get("synthesis") if isinstance(protocol.get("synthesis"), dict) else {}
+    declared_path = synthesis.get("analysis_manifest_path")
+    if manifest_path is not None and _is_safe_project_relative_path(declared_path):
+        project = Path(project_dir or Path(manifest_path).parent).expanduser().resolve()
+        actual = Path(manifest_path).expanduser().resolve()
+        try:
+            actual_rel = actual.relative_to(project).as_posix()
+        except ValueError:
+            actual_rel = ""
+        if actual_rel != declared_path:
+            errors.append(
+                "analysis manifest path does not match synthesis.analysis_manifest_path "
+                f"({actual_rel or actual} != {declared_path})"
+            )
+
+    nma_protocol = synthesis.get("network_meta_analysis") if isinstance(synthesis.get("network_meta_analysis"), dict) else {}
+    nma_manifest = manifest.get("network_meta_analysis") if isinstance(manifest.get("network_meta_analysis"), dict) else {}
+    if isinstance(nma_protocol.get("enabled"), bool) and nma_manifest.get("planned") != nma_protocol.get("enabled"):
+        errors.append("analysis manifest NMA planned status does not match the approved protocol")
+
+    pairwise_protocol = synthesis.get("pairwise_meta_analysis")
+    if isinstance(pairwise_protocol, dict) and isinstance(pairwise_protocol.get("enabled"), bool):
+        pairwise_manifest = manifest.get("pairwise") if isinstance(manifest.get("pairwise"), dict) else {}
+        if pairwise_manifest.get("planned") != pairwise_protocol["enabled"]:
+            errors.append("analysis manifest pairwise planned status does not match the approved protocol")
+
+    protocol_effects = synthesis.get("effect_measures")
+    manifest_effects = manifest.get("effect_measure_by_outcome")
+    if isinstance(protocol_effects, dict) and isinstance(manifest_effects, dict):
+        missing = sorted(set(protocol_effects) - set(manifest_effects))
+        extra = sorted(set(manifest_effects) - set(protocol_effects))
+        mismatched = sorted(
+            key for key in set(protocol_effects).intersection(manifest_effects)
+            if str(protocol_effects[key]).strip().casefold() != str(manifest_effects[key]).strip().casefold()
+        )
+        if missing:
+            errors.append(f"analysis manifest effect_measure_by_outcome is missing protocol outcomes: {missing}")
+        if extra:
+            errors.append(f"analysis manifest effect_measure_by_outcome contains outcomes not declared in protocol: {extra}")
+        if mismatched:
+            errors.append(f"analysis manifest effect measures disagree with protocol for: {mismatched}")
+
+    primary_protocol = synthesis.get("software", {}).get("primary_engine", {}) if isinstance(synthesis.get("software"), dict) else {}
+    primary_manifest = manifest.get("software", {}).get("primary_engine", {}) if isinstance(manifest.get("software"), dict) else {}
+    for field in ("name", "version"):
+        expected = primary_protocol.get(field)
+        actual = primary_manifest.get(field)
+        if _is_filled(expected) and str(actual).strip().casefold() != str(expected).strip().casefold():
+            errors.append(f"analysis manifest primary software {field} does not match the approved protocol")
+    expected_role = primary_protocol.get("role")
+    actual_role = primary_manifest.get("role")
+    if _is_filled(expected_role) and str(actual_role).strip().casefold() != str(expected_role).strip().casefold():
+        errors.append("analysis manifest primary software role does not match the approved protocol")
+    expected_packages = primary_protocol.get("packages")
+    actual_packages = primary_manifest.get("packages")
+    if isinstance(expected_packages, list) and expected_packages:
+        expected_package_names = {str(item).strip().casefold() for item in expected_packages if _is_filled(item)}
+        actual_package_names = {str(item).strip().casefold() for item in actual_packages or [] if _is_filled(item)}
+        if expected_package_names != actual_package_names:
+            errors.append("analysis manifest primary software packages do not exactly match the approved protocol")
+        if any(not re.search(r"\d", str(item)) for item in expected_packages if _is_filled(item)):
+            errors.append("approved protocol primary software packages must include explicit versions")
+        if any(not re.search(r"\d", str(item)) for item in actual_packages or [] if _is_filled(item)):
+            errors.append("analysis manifest primary software packages must include explicit versions")
+    expected_runtime = synthesis.get("software", {}).get("runtime_lock_paths") if isinstance(synthesis.get("software"), dict) else None
+    actual_runtime = manifest.get("software", {}).get("runtime_lock_paths") if isinstance(manifest.get("software"), dict) else None
+    if isinstance(expected_runtime, list) and expected_runtime:
+        if {str(item).strip().casefold() for item in expected_runtime} != {str(item).strip().casefold() for item in actual_runtime or []}:
+            errors.append("analysis manifest runtime lock paths do not exactly match the approved protocol")
+    expected_certainty_tools = synthesis.get("software", {}).get("certainty_tools") if isinstance(synthesis.get("software"), dict) else None
+    actual_certainty_tools = manifest.get("software", {}).get("certainty_tools") if isinstance(manifest.get("software"), dict) else None
+    if isinstance(expected_certainty_tools, list) and expected_certainty_tools:
+        if {
+            str(item).strip().casefold() for item in expected_certainty_tools if _is_filled(item)
+        } != {
+            str(item).strip().casefold() for item in actual_certainty_tools or [] if _is_filled(item)
+        }:
+            errors.append("analysis manifest certainty tools do not exactly match the approved protocol")
+    expected_seed = synthesis.get("software", {}).get("random_seed") if isinstance(synthesis.get("software"), dict) else None
+    actual_seed = manifest.get("software", {}).get("random_seed") if isinstance(manifest.get("software"), dict) else None
+    if _is_filled(expected_seed) and str(actual_seed).strip().casefold() != str(expected_seed).strip().casefold():
+        errors.append("analysis manifest random seed does not match the approved protocol")
+
+    model_text = str(synthesis.get("model_and_estimator", "")).casefold()
+    pairwise = manifest.get("pairwise") if isinstance(manifest.get("pairwise"), dict) else {}
+    manifest_model = " ".join(str(pairwise.get(field, "")) for field in ("primary_model", "primary_estimator")).casefold()
+    def model_family(text: str) -> Optional[str]:
+        if "random" in text:
+            return "random"
+        if "fixed" in text:
+            return "fixed"
+        if "bayes" in text:
+            return "bayesian"
+        return None
+    expected_family = model_family(model_text)
+    actual_family = model_family(manifest_model)
+    if expected_family and actual_family and expected_family != actual_family:
+        errors.append("analysis manifest pairwise model family does not match the approved protocol")
+    pairwise_is_planned = pairwise.get("planned", True) is True
+    if pairwise_is_planned:
+        estimator_text = str(pairwise.get("primary_estimator", "")).casefold()
+        estimator_aliases = {
+            "reml": ("reml",),
+            "paule-mandel": ("paule", "mandel"),
+            "paule mandel": ("paule", "mandel"),
+            "dersimonian-laird": ("der", "simonian", "laird"),
+        }
+        for label, tokens in estimator_aliases.items():
+            if label in model_text and not all(token in estimator_text for token in tokens):
+                errors.append(f"analysis manifest estimator does not match the protocol declaration ({label})")
+        interval_text = str(synthesis.get("confidence_interval_method", "")).casefold()
+        manifest_interval = str(pairwise.get("interval_method", "")).casefold()
+        interval_aliases = {
+            "hartung-knapp": ("hartung", "knapp"),
+            "hartung knapp": ("hartung", "knapp"),
+        }
+        for label, tokens in interval_aliases.items():
+            if label in interval_text and not all(token in manifest_interval for token in tokens):
+                errors.append(f"analysis manifest interval method does not match the protocol declaration ({label})")
+
+    if nma_manifest.get("planned") is True:
+        nma_model_text = str(nma_protocol.get("model_and_multi_arm_handling", "")).casefold()
+        nma_manifest_model = str(nma_manifest.get("model", "")).casefold()
+        nma_family_expected = model_family(nma_model_text)
+        nma_family_actual = model_family(nma_manifest_model)
+        if nma_family_expected and nma_family_actual and nma_family_expected != nma_family_actual:
+            errors.append("analysis manifest NMA model family does not match the approved protocol")
+        nma_field_bindings = {
+            "intervention_node_definitions": "node_definitions",
+            "network_connectivity_and_geometry": "connectivity",
+            "transitivity_assessment": "transitivity",
+            "transitivity_effect_modifiers": "transitivity_effect_modifiers",
+            "incoherence_assessment": "inconsistency",
+            "model_and_multi_arm_handling": "multi_arm_covariance",
+            "ranking_interpretation": "ranking_uncertainty",
+            "certainty_framework": "certainty_method",
+            "assumption_failure_plan": "assumption_failure_plan",
+        }
+        for protocol_field, manifest_field in nma_field_bindings.items():
+            expected = nma_protocol.get(protocol_field)
+            actual = nma_manifest.get(manifest_field)
+            if _contract_value_filled(expected) and not _contract_value_filled(actual):
+                errors.append(f"analysis manifest network_meta_analysis.{manifest_field} is missing protocol field {protocol_field}")
+            elif _contract_value_filled(expected) and _canonical_contract_value(expected) != _canonical_contract_value(actual):
+                errors.append(
+                    "analysis manifest network_meta_analysis."
+                    f"{manifest_field} does not exactly match protocol {protocol_field}"
+                )
+        expected_nma_model = nma_protocol.get("model_specification")
+        actual_nma_model = nma_manifest.get("model")
+        if _is_filled(expected_nma_model) and _canonical_contract_value(expected_nma_model) != _canonical_contract_value(actual_nma_model):
+            errors.append("analysis manifest network_meta_analysis.model does not exactly match protocol model_specification")
     return errors
 
 
