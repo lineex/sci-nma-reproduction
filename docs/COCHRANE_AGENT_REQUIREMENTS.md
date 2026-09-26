@@ -29,6 +29,13 @@ project's user-selected retrieval interface; agent roles and two-agent gate
 reviews are governance mechanisms chosen to implement independent work and
 quality assurance.
 
+The Handbook informs the synthesis methods but does not prescribe this
+project's statistical software. For new reviews, this project's default
+primary production engine is R; selecting Stata or another validated engine
+is a project-level protocol decision that must be justified and version-locked.
+For publication reproduction, follow the source study's software and settings
+when fidelity to its analysis is the objective.
+
 The Handbook primarily addresses systematic reviews of intervention effects.
 For diagnostic, prognostic, prevalence, or other review questions, the protocol
 must identify the applicable method guidance rather than treating this mapping

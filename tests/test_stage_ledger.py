@@ -91,7 +91,6 @@ def _valid_protocol_text():
         "synthesis.small_study_effects_plan": "Assess only when sufficient studies are available; otherwise report not assessed",
         "synthesis.software_and_version": "R 4.5.1, meta 8.1-0",
         "synthesis.analysis_manifest_path": "verification/analysis_manifest.json",
-        "synthesis.software.primary_engine.name": "R",
         "synthesis.software.primary_engine.version": "4.5.1",
         "synthesis.software.primary_engine.role": "Primary production engine for pairwise synthesis and prespecified NMA",
         "synthesis.software.primary_engine.packages": ["meta 8.1-0"],
@@ -318,6 +317,26 @@ def test_protocol_preflight_rejects_template_and_requires_nma_assumptions():
     assert any("transitivity_assessment" in error for error in errors)
 
 
+def test_synthesis_templates_default_primary_engine_to_r():
+    repo_root = Path(__file__).parents[1]
+    protocol_templates = [
+        repo_root / "data" / "templates" / "review_protocol_template.json",
+        repo_root / "sci_nma_agent" / "templates" / "review_protocol_template.json",
+    ]
+    manifest_templates = [
+        repo_root / "data" / "templates" / "analysis_manifest_template.json",
+        repo_root / "sci_nma_agent" / "templates" / "analysis_manifest_template.json",
+    ]
+
+    for path in protocol_templates:
+        template = json.loads(path.read_text(encoding="utf-8"))
+        assert template["synthesis"]["software"]["primary_engine"]["name"] == "R"
+
+    for path in manifest_templates:
+        template = json.loads(path.read_text(encoding="utf-8"))
+        assert template["software"]["primary_engine"]["name"] == "R"
+
+
 def test_analysis_manifest_requires_methods_software_and_hashed_outputs(tmp_path):
     output = tmp_path / "results" / "pooled_effects.json"
     output.parent.mkdir(parents=True)
@@ -354,7 +373,10 @@ def test_analysis_manifest_requires_methods_software_and_hashed_outputs(tmp_path
         },
         "software": {
             "primary_engine": {
-                "name": "R",
+                "name": json.loads(
+                    (Path(__file__).parents[1] / "data" / "templates" / "analysis_manifest_template.json")
+                    .read_text(encoding="utf-8")
+                )["software"]["primary_engine"]["name"],
                 "version": "4.5.1",
                 "packages": ["meta 8.1-0", "metafor 4.8-0"],
                 "role": "Primary production pairwise synthesis",
@@ -460,6 +482,20 @@ def test_protocol_preflight_rejects_python_as_primary_production_engine():
     protocol["synthesis"]["software"]["primary_engine"]["name"] = "Python"
     errors = validate_review_protocol(protocol)
     assert any("synthesis.software.primary_engine cannot be Python" in error for error in errors)
+
+
+def test_protocol_preflight_allows_explicit_validated_stata_override():
+    protocol = json.loads(_valid_protocol_text())
+    protocol["synthesis"]["software"]["primary_engine"].update(
+        {
+            "name": "Stata",
+            "version": "18.0",
+            "packages": ["meta 1.0", "network 1.0"],
+            "role": "Explicit validated production engine",
+        }
+    )
+    errors = validate_review_protocol(protocol)
+    assert errors == []
 
 
 def test_analysis_manifest_binding_rejects_estimator_interval_role_and_extra_outcome():

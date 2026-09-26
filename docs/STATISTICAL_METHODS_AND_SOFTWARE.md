@@ -5,6 +5,26 @@ network meta-analysis. It is a project implementation contract informed by
 the current Cochrane Handbook; it is not a claim that Cochrane mandates a
 particular package. The approved figure and table format remains unchanged.
 
+## 0. New-project software default
+
+For a **new** evidence-synthesis project, the project default primary
+production engine is **R**. At protocol freeze, replace the default with the
+exact installed R version, package versions, runtime lock (normally
+`renv.lock`), and analysis script paths. The default is a project choice that
+keeps the pairwise, frequentist NMA, Bayesian NMA, and diagnostic tooling in a
+single reproducible ecosystem; it is not a Cochrane requirement.
+
+An investigator may select Stata or another validated production engine when
+the review methods or local validation require it. That selection must be
+explicit in the protocol and analysis manifest, include the exact versions and
+runtime lock, and record the rationale as a protocol decision. Python remains
+the orchestration/QA layer and is not a primary production synthesis engine.
+
+This default applies only to new reviews. A reproduction or calibration task
+must preserve the published study's software and settings when fidelity to the
+source analysis is the objective; R is then a verification or reimplementation
+choice only when declared in that task's protocol.
+
 ## 1. Analysis decisions before synthesis
 
 The protocol must define the estimand before any model is run. Record the
@@ -76,10 +96,10 @@ and statistically missing values in the data and fact-status manifests.
 
 ## 5. Software roles
 
-| Role | Preferred software | Contract |
+| Role | Project default / approved software | Contract |
 |---|---|---|
-| Pairwise synthesis | R 4.x with `meta` and/or `metafor` | Primary production engine; record estimator, interval method, transformations, and package versions. |
-| Frequentist NMA | R `netmeta` | Use a connected contrast-based model with explicit inconsistency and multi-arm checks. |
+| Pairwise synthesis | **R 4.x with `meta` and/or `metafor` (default for new projects)** | Primary production engine; record estimator, interval method, transformations, and package versions. |
+| Frequentist NMA | **R `netmeta` (default for new projects)** | Use a connected contrast-based model with explicit inconsistency and multi-arm checks. |
 | Bayesian NMA | R `gemtc`/`BUGSnet` with JAGS, or Stan via `rstan`/`brms` | Record model code, priors, sampler settings, seed, and convergence diagnostics. |
 | Dependent effects/meta-regression | R `clubSandwich`, `metafor`, or a prespecified multivariate model | State the covariance or robust-variance assumptions. |
 | Risk of bias | RoB 2/ROBINS-I workflows; `robvis` for visualization | Preserve domain-level judgements and evidence; do not substitute a quality total score. |
@@ -92,9 +112,10 @@ actual software and package versions used, including failed or exploratory
 runs that influenced a decision.
 
 The protocol preflight rejects Python as the primary production synthesis
-engine. Python remains available for orchestration, input validation, QA, and
-figure/table generation; a formal release must name a locked R, Stata, or other
-validated synthesis engine with explicit package versions and a project-local
+engine. New projects start with R unless an explicit protocol decision selects
+Stata or another validated engine. Python remains available for orchestration,
+input validation, QA, and figure/table generation; a formal release must name
+a locked production engine with explicit package versions and a project-local
 runtime lock.
 
 ## 6. `analysis_manifest.json`

@@ -240,6 +240,7 @@ def main():
         project_path = Path(p_dir).expanduser().resolve()
         template_targets = {
             "review_protocol_template.json": "review_protocol.json",
+            "analysis_manifest_template.json": "verification/analysis_manifest.json",
             "methods_source_log_template.json": "verification/methods_source_log.json",
             "data_extraction_template.csv": "data/data_extraction_template.csv",
             "agent_stage_card_template.json": "agents/stage_card_template.json",
@@ -263,6 +264,7 @@ def main():
         print("  - Raw export directories ready in: raw_exports/{pubmed, embase, wos, cochrane}")
         print("  - Screening directory ready in: screening/")
         print("  - New-review protocol, extraction form, and gated agent ledger initialized.")
+        print("  - Statistical default: R; complete exact R/package versions and renv.lock before synthesis.")
 
     elif args.command == "zotero-fulltext":
         try:

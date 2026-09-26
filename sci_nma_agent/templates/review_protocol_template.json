@@ -163,7 +163,7 @@
     },
     "software": {
       "primary_engine": {
-        "name": "",
+        "name": "R",
         "version": "",
         "packages": [],
         "role": ""

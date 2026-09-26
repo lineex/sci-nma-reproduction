@@ -292,7 +292,7 @@ The framework strictly enforces the **Anti-Shortcut Protocol**: Every single pha
    - **产出**：结构化筛选流向数据（检出、去重、初筛、索取、评估、纳入）。
    - **验收检查点 (Checkpoint 2 / Gate 1)**：严格核验 PRISMA 数学闭环，保证流向损耗绝对归零（$L \equiv 0$），初筛与全文排除细项加和 100% 守恒。
 3. **第三步（Stage 3 数据抽取与统计精算）**：
-   - **产出**：基线数据、2x2 四格表和统计 QA 结果；正式成对 Meta/NMA 结果必须由 protocol 声明并锁定的 R/Stata/验证引擎生成，并通过 `analysis_manifest.json` 门禁。
+   - **产出**：基线数据、2x2 四格表和统计 QA 结果；新项目默认使用 R 作为正式成对 Meta/NMA 生产引擎，并在 protocol 中锁定精确版本、包版本与 `renv.lock`。若选择 Stata/其他验证引擎，须记录明确理由；正式结果必须通过 `analysis_manifest.json` 门禁。
    - **验收检查点 (Checkpoint 3 / Gate 2 & 3)**：Gate 2 真实性核验（100% 检验 DOI 结构、PMID 及坐标锚定，零 mock 伪造）；Gate 3 统计自洽性核验（样本量守恒、95% CI 正确包裹、AUROC/患病率强制 Logit 正态尺度转换）。
 4. **第四步（Stage 4 纯矢量图件代码渲染）**：
    - **产出**：PRISMA 2020 流程图、亚组高密度森林图、网状拓扑图。

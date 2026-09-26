@@ -40,8 +40,12 @@ effect estimates, model, or figure contents as new-review data.
    compatibility before synthesis; apply the [statistical methods and software
    contract](../../../docs/STATISTICAL_METHODS_AND_SOFTWARE.md), create
    `analysis_manifest.json`, and prespecify analysis, diagnostics, and
-   sensitivity decisions. Use the bundled Python engines only for QA; formal
-   synthesis must come from the locked production engine named in the protocol.
+   sensitivity decisions. Start new projects with **R as the default primary
+   production engine**, then lock the exact R/package versions, `renv.lock`,
+   and scripts. A Stata or other validated engine is allowed only when the
+   protocol records an explicit rationale and equivalent runtime controls. Use
+   the bundled Python engines only for QA; formal synthesis must come from the
+   locked production engine named in the protocol.
    Assess certainty and report under the applicable framework.
 
 ## Stage Control
