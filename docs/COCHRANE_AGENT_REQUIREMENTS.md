@@ -5,7 +5,7 @@
 | Source | Relevant location | Requirements carried into this project |
 |---|---|---|
 | Cochrane Handbook current online edition | Ch 1 §§1.4-1.6; Ch 2 §§2.1-2.5; Ch 3 §3.2 | Prespecified scope, explicit question/criteria, protocol and quality assurance |
-| Cochrane Handbook | Ch 4 §§4.3-4.6, especially §§4.6.3-4.6.4 | Reproducible searching, documented selection, full-text retrieval, independent full-text eligibility assessment and transparent reasons |
+| Cochrane Handbook | Ch 4 §§4.3-4.6, especially §§4.4.2-4.4.5, 4.4.7, 4.6.3-4.6.4 | Sensitivity-first reproducible searching, documented selection, full-text retrieval, independent full-text eligibility assessment and transparent reasons |
 | Cochrane Handbook | Ch 5 §§5.2-5.7 | Structured extraction of study/outcome data, multi-report linkage, source and decision provenance |
 | Cochrane Handbook | Ch 7-8; Ch 25 when non-randomized intervention studies are eligible | Consider bias/conflicts across studies and assess risk of bias with design-appropriate methods; do not use a generic quality score |
 | Cochrane Handbook | Ch 9 | Summarize study characteristics and prepare for synthesis; this is not the risk-of-bias chapter |
@@ -46,6 +46,23 @@ log. Declare the selected `chapter-NN` IDs and scope rationale in
 with one matching Handbook chapter per record and the attached tutorial as a
 separate source. The Protocol gate requires exact chapter-set and URL matching.
 This mapping was checked on 2026-09-25.
+
+## Search-concept decision
+
+For intervention reviews, Chapter 4.4.2 is operationalized as a sensitivity-first
+default: use population/problem and intervention/exposure blocks; do not add
+every PICOS element merely to reduce the number of records. Comparator and
+outcome blocks are optional and require a protocol rationale plus stable
+indexing/reporting. This is not a universal P+I rule for diagnostic,
+prognostic, prevalence, or other non-intervention reviews; those protocols
+declare their own concept structure.
+
+Language, publication-status, human, date, document-type, and study-design
+limits are opt-in, database-specific, and separately justified. CENTRAL is not
+given a generic trials or human filter. Generated native lines are planning
+artifacts; before a search gate is released, the project must retain the exact
+database history/export as run, including set numbers, totals, date/timezone,
+and peer review.
 
 The skill entrypoint is a compact task router. It loads this new-review workflow
 only for a new evidence-synthesis question; publication reproduction and its

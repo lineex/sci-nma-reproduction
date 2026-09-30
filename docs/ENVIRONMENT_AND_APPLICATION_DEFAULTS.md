@@ -45,6 +45,22 @@ statistics: R (no silent Python production fallback)
      advertised loopback WebSocket endpoint. An unsafe, incomplete, or
      unreachable endpoint is recorded as a failed fallback and never treated as
      a zero-result search.
+   - Search formulation follows a sensitivity-first PICOS policy for
+     intervention reviews: P and I are required; C and O are optional and
+     omitted by default. Enabling C or O requires stable indexing/reporting,
+     a protocol rationale, and a search-supplement record. Diagnostic,
+     prognostic, and other non-intervention questions may declare a different
+     concept structure.
+   - Language, date, human, publication-status, document-type, and
+     study-design limits are opt-in rather than global defaults. Each enabled
+     restriction is recorded with a database-specific rationale and native
+     syntax; CENTRAL is not assigned a generic trials/human filter.
+   - The visible supplement is componentized by database-native lines. It
+     records the exact native concept/filter/limit syntax and interface set
+     combination, while the collapsed generated execution query remains a
+     separate hash-bound artifact referenced by path and SHA-256. Generated
+     lines are marked planned until the exact-as-run history/export, totals,
+     date/timezone, and peer review are attached.
 2. The Zotero MCP connection is the default full-text application path. Run
    `sci-nma-agent zotero-mcp-check` before collection export. The connected
    server's discovered tool schemas are authoritative. Preserve collection,

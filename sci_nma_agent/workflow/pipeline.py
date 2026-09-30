@@ -342,15 +342,15 @@ class SOPPipeline:
         with open(config_pico_path, "r", encoding="utf-8") as f:
             pico_config = json.load(f)
 
-        queries = QueryHarmonizer.harmonize(pico_config)
-        search_dir = os.path.join(self.project_dir, "search_strategies")
-        os.makedirs(search_dir, exist_ok=True)
-
-        # Write queries
-        for db, q in queries.items():
-            q_file = os.path.join(search_dir, f"{db}_search.txt")
-            with open(q_file, "w", encoding="utf-8") as f:
-                f.write(q)
+        strategy_plan = QueryHarmonizer.harmonize_with_strategy(pico_config)
+        queries = {
+            database: item["execution_query"]
+            for database, item in strategy_plan["databases"].items()
+        }
+        # Keep the one-line query as a private, hash-bound execution artifact
+        # and write a separate appendix-safe native line strategy. The
+        # supplement is populated from the latter, not from the opaque payload.
+        QueryHarmonizer.write_strategy_artifacts(pico_config, self.project_dir)
 
         # --- STEP 1 ACCEPTANCE CHECKPOINT ---
         print("\n[*] Running Step 1 Acceptance Verification (Search Syntax & Logic Check)...")

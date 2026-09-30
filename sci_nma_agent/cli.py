@@ -53,8 +53,13 @@ def main():
     init_parser.add_argument("project_dir", help="Path to project directory")
 
     # Command: search
-    search_parser = subparsers.add_parser("search", help="Build search strings for PubMed, Embase, Cochrane, WoS")
+    search_parser = subparsers.add_parser("search", help="Build native line-by-line search strategies for PubMed, Embase, Cochrane, WoS")
     search_parser.add_argument("--pico", required=True, help="Path to PICO JSON configuration")
+    search_parser.add_argument(
+        "--show-execution-query",
+        action="store_true",
+        help="Also print the private one-line execution query (hidden by default)",
+    )
 
     # Command: session-check
     sess_parser = subparsers.add_parser("session-check", help="Check browser remote debugging connection and institutional access")
@@ -510,10 +515,30 @@ def main():
     elif args.command == "search":
         with open(args.pico, "r", encoding="utf-8") as f:
             pico = json.load(f)
-        queries = QueryHarmonizer.harmonize(pico)
-        print("\n--- Harmonized Multi-Database Search Queries ---\n")
-        for db, q in queries.items():
-            print(f"[{db}]:\n{q}\n")
+        strategy_plan = QueryHarmonizer.harmonize_with_strategy(pico)
+        print("\n--- Native Database Search Strategy (PICOS; appendix-safe) ---\n")
+        print(json.dumps({
+            "framework": strategy_plan["framework"],
+            "search_policy": strategy_plan["search_policy"],
+            "concept_blocks": strategy_plan["concept_blocks"],
+        }, ensure_ascii=False, indent=2))
+        for db, item in strategy_plan["databases"].items():
+            print(f"\n[{db}]")
+            print(
+                f"  strategy_status: {item['appendix_policy']['strategy_status']} "
+                f"(exact-as-run history/export required before release)"
+            )
+            print(
+                f"  restrictions_applied: {', '.join(item['restriction_status']['applied']) or 'none'}; "
+                f"not_applied: {', '.join(item['restriction_status']['not_applied']) or 'none'}"
+            )
+            for line in item["native_lines"]:
+                print(
+                    f"  {line['line_number']}. {line['line_type']} "
+                    f"[{line['concept_block']}]: {line['native_syntax']}"
+                )
+            if args.show_execution_query:
+                print(f"  execution_query (private artifact): {item['execution_query']}")
 
     elif args.command == "ingest":
         p_dir = args.project_dir

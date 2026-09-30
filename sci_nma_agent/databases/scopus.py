@@ -9,6 +9,20 @@ from typing import List, Optional
 class ScopusQueryBuilder:
     """Constructs native Scopus search strings."""
 
+    @staticmethod
+    def build_concept_clause(terms: List[str]) -> str:
+        """Return one native Scopus TITLE-ABS-KEY concept block."""
+        if not terms:
+            raise ValueError("Scopus search terms must contain at least one value")
+        clauses = [
+            f'TITLE-ABS-KEY("{str(term).strip()}")'
+            for term in terms
+            if str(term).strip()
+        ]
+        if not clauses:
+            raise ValueError("Scopus search terms must contain at least one non-empty value")
+        return f"({' OR '.join(clauses)})"
+
     @classmethod
     def build_query(
         cls,
@@ -16,22 +30,20 @@ class ScopusQueryBuilder:
         intervention_terms: List[str],
         comparison_terms: Optional[List[str]] = None,
         year_range: Optional[tuple] = None,
-        article_or_review_only: bool = True
+        article_or_review_only: bool = True,
+        outcome_terms: Optional[List[str]] = None,
     ) -> str:
         """
         Build native Scopus search syntax using TITLE-ABS-KEY.
         """
-        def format_terms(terms: List[str]) -> str:
-            clauses = [f'TITLE-ABS-KEY("{t}")' for t in terms]
-            return f"({' OR '.join(clauses)})"
-
-        pop_clause = format_terms(population_terms)
-        int_clause = format_terms(intervention_terms)
+        pop_clause = cls.build_concept_clause(population_terms)
+        int_clause = cls.build_concept_clause(intervention_terms)
         parts = [pop_clause, int_clause]
 
         if comparison_terms:
-            comp_clause = format_terms(comparison_terms)
-            parts.append(comp_clause)
+            parts.append(cls.build_concept_clause(comparison_terms))
+        if outcome_terms:
+            parts.append(cls.build_concept_clause(outcome_terms))
 
         full_query = " AND ".join(parts)
 

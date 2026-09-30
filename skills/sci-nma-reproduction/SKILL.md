@@ -58,6 +58,19 @@ profile or a network/public address. The session preflight must validate
 automation; classify an unsafe or incomplete endpoint as a failed fallback,
 not as an empty search.
 
+For search formulation, use a sensitivity-first PICOS strategy: require P
+and I for the default intervention question, omit C and O by default, and
+enable either optional block only with a protocol rationale. This is not an
+absolute rule for diagnostic, prognostic, or other non-intervention questions;
+the protocol may define a different concept structure. Language, date, human,
+publication-status, document-type, and study-design restrictions are also
+opt-in and require database-specific rationales. Generate a separate native
+line-by-line strategy for each database. The rendered supplement shows those
+native lines and interface set references; the collapsed generated execution
+query stays in a separate hash-bound artifact. Before release, replace or
+annotate planned generated lines with the exact-as-run history/export record,
+including set numbers, totals, date/timezone, and peer review.
+
 Use a **form-first, journal-shaped package** for every new review:
 
 - Complete the line-by-line search supplement at

@@ -13,7 +13,10 @@
     "search": {
       "primary_browser": "cdp_builtin_browser",
       "fallback_browser": "chrome_devtools",
-      "fallback_order": ["cdp_builtin_browser", "chrome_devtools"],
+      "fallback_order": [
+        "cdp_builtin_browser",
+        "chrome_devtools"
+      ],
       "selection_policy": "try_primary_then_fallback",
       "session_policy": "reuse_authenticated_session"
     },
@@ -21,24 +24,31 @@
       "primary_connector": "zotero_mcp",
       "primary_server": "cookjohn/zotero-mcp",
       "fallback_connector": "zotero_local_read_only",
-      "fallback_order": ["zotero_mcp", "zotero_local_read_only"],
+      "fallback_order": [
+        "zotero_mcp",
+        "zotero_local_read_only"
+      ],
       "selection_policy": "try_primary_then_fallback"
     },
     "statistics": {
       "primary_engine": "R",
-      "pairwise_packages": ["meta", "metafor"],
+      "pairwise_packages": [
+        "meta",
+        "metafor"
+      ],
       "frequentist_nma_package": "netmeta",
       "runtime_lock": "renv.lock",
       "python_role": "orchestration_and_qa_only"
     }
   },
   "question": {
-    "framework": "PICO",
+    "framework": "PICOS",
     "population": "",
     "intervention_or_exposure": "",
     "comparator": "",
     "clinical_context": "",
-    "objective": ""
+    "objective": "",
+    "study_design": ""
   },
   "eligibility": {
     "inclusion_criteria": [],
@@ -76,18 +86,45 @@
     "search_strategy_supplement_path": "reporting/supplementary/search_strategy_supplement.csv",
     "search_strategy_template": "data/templates/search_strategy_supplement_template.csv",
     "search_strategy_reporting_standard": "PRISMA-S",
-    "search_strategy_row_contract": "One row per database line with exact syntax, fields, controlled vocabulary, limits, date/timezone, hit count, export hash, history/query locator, peer review, and rerun instructions",
+    "search_strategy_row_contract": "One row per database-native concept/filter/limit/interface line; record native syntax, field tags, vocabulary, limits, counts, evidence locator, execution artifact path/hash, planned-versus-executed status, and whether the collapsed final query is displayed",
     "citation_searching": [],
     "restrictions_and_rationale": "",
-    "search_peer_review_plan": ""
+    "search_peer_review_plan": "",
+    "search_concept_policy": {
+      "required_blocks": [
+        "P",
+        "I"
+      ],
+      "optional_blocks": [
+        "C",
+        "O"
+      ],
+      "include_comparator_by_default": false,
+      "include_outcome_by_default": false,
+      "outcome_search_rationale": "",
+      "native_syntax_appendix_policy": "Show line-by-line database-native concept/filter/limit syntax; keep the collapsed execution query in a separate hash-bound artifact unless a journal-approved release exception is recorded.",
+      "include_study_design_filter_by_default": false,
+      "include_language_limit_by_default": false,
+      "include_humans_limit_by_default": false,
+      "include_date_limit_by_default": false,
+      "include_document_type_limit_by_default": false,
+      "comparator_search_rationale": "",
+      "restriction_policy": "Language, publication-status, human, date, and document-type restrictions are opt-in; each enabled restriction must have a database-specific rationale and native syntax record."
+    }
   },
   "methods_sources": {
     "cochrane_chapters_used": [],
     "chapter_scope_rationale": ""
   },
   "selection": {
-    "title_abstract_reviewers": ["SCREENER_A", "SCREENER_B"],
-    "full_text_reviewers": ["SCREENER_A", "SCREENER_B"],
+    "title_abstract_reviewers": [
+      "SCREENER_A",
+      "SCREENER_B"
+    ],
+    "full_text_reviewers": [
+      "SCREENER_A",
+      "SCREENER_B"
+    ],
     "adjudicator": "ADJUDICATOR",
     "conflict_resolution": "",
     "full_text_exclusion_reasons": []
@@ -154,7 +191,10 @@
   "data_collection": {
     "form_path": "data/data_extraction_template.csv",
     "pilot_studies": [],
-    "extractors": ["EXTRACTOR_A", "EXTRACTOR_B"],
+    "extractors": [
+      "EXTRACTOR_A",
+      "EXTRACTOR_B"
+    ],
     "independent_verification_rule": "",
     "pilot_and_training_plan": "",
     "author_contact_policy": "",
@@ -162,7 +202,10 @@
   },
   "risk_of_bias": {
     "tool_by_design": {},
-    "reviewers": ["ROB_REVIEWER_A", "ROB_REVIEWER_B"],
+    "reviewers": [
+      "ROB_REVIEWER_A",
+      "ROB_REVIEWER_B"
+    ],
     "outcome_level_assessment": true,
     "disagreement_resolution": ""
   },
@@ -249,7 +292,10 @@
     "manuscript_path": "reporting/manuscript.md",
     "cover_letter_path": "reporting/cover_letter.md",
     "supplementary_directory": "reporting/supplementary",
-    "reporting_standards": ["PRISMA 2020", "PRISMA-S"],
+    "reporting_standards": [
+      "PRISMA 2020",
+      "PRISMA-S"
+    ],
     "form_first_policy": "Complete the declared templates and manifests before narrative drafting; manuscript, tables, figures, and supplements must be generated from approved, hash-bound artifacts.",
     "submission_release_rule": "Release only when every required artifact has a project-relative path, source locator, SHA-256 hash, two independent approvals, and a final package audit."
   }

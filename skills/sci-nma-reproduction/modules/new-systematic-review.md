@@ -14,6 +14,17 @@ effect estimates, model, or figure contents as new-review data.
 2. Execute database-specific searches and peer review through the built-in CDP
    browser first, with Chrome DevTools as the fallback. Preserve exact
    strategies, dates, counts, browser/session route, exports, and provenance.
+   Build intervention searches with the sensitivity-first PICOS rule: P and I
+   are required; C and O are omitted unless the protocol explicitly enables
+   them with a restriction rationale. For diagnostic, prognostic, and other
+   non-intervention questions, use the protocol's declared concept structure.
+   Language, date, human, publication-status, document-type, and study-design
+   limits are opt-in and require database-specific rationales. Record each
+   database's native syntax as numbered
+   concept/filter/limit/combination lines. Keep the collapsed generated
+   execution query in a separate hash-bound run artifact, and after execution
+   attach the exact-as-run history/export record rather than presenting a
+   generated plan as completed evidence.
    Fill one row per database search line in
    `reporting/supplementary/search_strategy_supplement.csv`; the row must be
    sufficient to rerun the search without reading the manuscript narrative.

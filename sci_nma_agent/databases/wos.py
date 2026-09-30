@@ -52,7 +52,8 @@ class WoSQueryBuilder:
         intervention_terms: List[str],
         comparison_terms: Optional[List[str]] = None,
         year_range: Optional[tuple] = None,
-        article_or_review_only: bool = True
+        article_or_review_only: bool = True,
+        outcome_terms: Optional[List[str]] = None,
     ) -> str:
         """Build a valid native WoS search query.
 
@@ -67,6 +68,8 @@ class WoSQueryBuilder:
 
         if comparison_terms:
             parts.append(cls._format_field_terms("TS", comparison_terms))
+        if outcome_terms:
+            parts.append(cls._format_field_terms("TS", outcome_terms))
 
         full_query = " AND ".join(parts)
 

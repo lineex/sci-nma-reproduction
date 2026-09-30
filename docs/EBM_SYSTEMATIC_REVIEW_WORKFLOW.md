@@ -133,9 +133,12 @@ necessary.
 `sci-nma-agent init PROJECT` creates a journal-shaped reporting workspace:
 
 - `reporting/supplementary/search_strategy_supplement.csv`: one row per
-  database search line, including exact syntax, fields, controlled vocabulary,
-  limits, date/timezone, hit count, export hash, query/history locator,
-  peer-review status, and rerun instructions.
+  database-native concept/filter/limit/interface line, including native syntax,
+  fields, controlled vocabulary, limits, date/timezone, hit count, export hash,
+  execution-artifact path/hash, query/history locator, peer-review status, and
+  rerun instructions. The rendered appendix does not paste the collapsed
+  generated one-line execution query by default; it must still preserve the
+  exact-as-run database history/export record before release.
 - `reporting/supplementary_materials_manifest.json`: release inventory linking
   each supplement, manuscript, cover letter, checklist, figure, table, code,
   and reproducibility artifact to its stage, source locator, status, hash, and

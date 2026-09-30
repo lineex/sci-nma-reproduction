@@ -4,7 +4,6 @@ Implements MeSH indexing, field tags, and the Cochrane Highly Sensitive Search S
 """
 
 from typing import List, Dict, Any, Optional
-import urllib.parse
 import requests
 
 
@@ -17,6 +16,34 @@ class PubMedQueryBuilder:
         '"randomly"[tiab] OR "trial"[ti]) NOT ("animals"[mh] NOT "humans"[mh])'
     )
 
+    @staticmethod
+    def _format_terms(
+        terms: List[str],
+        mesh_mapping: Optional[Dict[str, str]] = None,
+    ) -> str:
+        if not terms:
+            raise ValueError("PubMed search terms must contain at least one value")
+        clauses = []
+        for term in terms:
+            value = str(term).strip()
+            if not value:
+                continue
+            clauses.append(f'"{value}"[tiab]')
+            if mesh_mapping and value in mesh_mapping:
+                clauses.append(f'"{mesh_mapping[value]}"[MeSH Terms]')
+        if not clauses:
+            raise ValueError("PubMed search terms must contain at least one non-empty value")
+        return f"({' OR '.join(clauses)})"
+
+    @classmethod
+    def build_concept_clause(
+        cls,
+        terms: List[str],
+        mesh_mapping: Optional[Dict[str, str]] = None,
+    ) -> str:
+        """Return a native PubMed concept block without filters or limits."""
+        return cls._format_terms(terms, mesh_mapping)
+
     @classmethod
     def build_query(
         cls,
@@ -26,29 +53,21 @@ class PubMedQueryBuilder:
         mesh_mapping: Optional[Dict[str, str]] = None,
         apply_rct_filter: bool = True,
         year_range: Optional[tuple] = None,
-        english_only: bool = True
+        english_only: bool = True,
+        outcome_terms: Optional[List[str]] = None,
     ) -> str:
         """
         Build publication-grade PubMed search string.
         """
-        def format_terms(terms: List[str]) -> str:
-            clauses = []
-            for t in terms:
-                # Add title/abstract tag
-                clauses.append(f'"{t}"[tiab]')
-                # If mapped to MeSH, add MeSH tag
-                if mesh_mapping and t in mesh_mapping:
-                    clauses.append(f'"{mesh_mapping[t]}"[MeSH Terms]')
-            return f"({' OR '.join(clauses)})"
-
-        pop_clause = format_terms(population_terms)
-        int_clause = format_terms(intervention_terms)
+        pop_clause = cls.build_concept_clause(population_terms, mesh_mapping)
+        int_clause = cls.build_concept_clause(intervention_terms, mesh_mapping)
 
         parts = [pop_clause, int_clause]
 
         if comparison_terms:
-            comp_clause = format_terms(comparison_terms)
-            parts.append(comp_clause)
+            parts.append(cls.build_concept_clause(comparison_terms, mesh_mapping))
+        if outcome_terms:
+            parts.append(cls.build_concept_clause(outcome_terms, mesh_mapping))
 
         full_query = " AND ".join(parts)
 

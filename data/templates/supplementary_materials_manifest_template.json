@@ -380,14 +380,14 @@
     "standard": "PRISMA-S",
     "source_of_truth_csv": "reporting/supplementary/search_strategy_supplement.csv",
     "rendered_appendix": "reporting/supplementary/search_strategy_supplement.md",
-    "one_row_per": "executable database/interface line or other source method",
+    "one_row_per": "database-native concept/filter/limit/interface line, plus the exact-as-run history/export artifact when available",
     "mandatory_fields": [
       "source_type",
       "database",
       "platform",
       "search_date",
       "timezone",
-      "exact_line_copied_verbatim",
+      "native_syntax_line",
       "limits_and_filters",
       "line_result_count",
       "final_search_total",
@@ -396,8 +396,18 @@
       "history_id_or_query_url",
       "source_locator",
       "peer_review_status",
-      "evidence_status"
+      "evidence_status",
+      "execution_query_artifact",
+      "execution_query_sha256",
+      "final_combination_displayed",
+      "strategy_status",
+      "exact_run_history_artifact",
+      "exact_run_history_sha256",
+      "restriction_status"
     ],
-    "release_reconciliation": "Reconcile each source total with PRISMA flow ledger and lock CSV/appendix hashes before release"
+    "release_reconciliation": "Reconcile each source total with PRISMA flow ledger and lock CSV/appendix hashes before release",
+    "display_policy": "componentized_native_syntax",
+    "final_execution_query_policy": "Keep the collapsed final execution query in a separate hash-bound execution artifact; do not display it in the rendered appendix by default.",
+    "exact_as_run_policy": "Generated native lines are planned templates only. Before release, attach the exact lines as run, set numbers, totals, date/timezone, export, and peer-review evidence."
   }
 }

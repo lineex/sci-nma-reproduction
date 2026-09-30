@@ -168,10 +168,23 @@ pytest tests/ -v
 sci-nma-agent audit examples/case_study_corticosteroids_nma
 ```
 
-#### Generate Harmonized 4-Database Search Queries from PICO
+#### Generate Database-Native PICOS Search Strategies
 ```bash
 sci-nma-agent search --pico examples/case_study_corticosteroids_nma/config_pico.json
 ```
+
+The search generator uses a sensitivity-first PICOS policy for intervention
+reviews: **P (population) and I (intervention/exposure) are the default
+concept blocks; C (comparator) and O (outcome) are omitted by default**.
+Enable either optional block only when the protocol records stable
+indexing/reporting and a rationale. Language, date, human,
+publication-status, document-type, and study-design restrictions are also
+opt-in and database-specific. Each database receives its own native syntax
+strategy (MeSH/field tags, Emtree, Cochrane Search Manager, WoS, or Scopus)
+as numbered concept/filter/limit lines. The collapsed generated one-line
+execution query is kept as a separate hash-bound run artifact rather than
+pasted into the rendered supplement; exact-as-run history/export evidence is
+attached before release.
 
 #### Execute Individual SOP Stage with Strict Acceptance Gate
 ```bash
@@ -235,7 +248,7 @@ The framework strictly enforces the **Anti-Shortcut Protocol**: Every single pha
 - 新项目的环境与应用默认值集中记录在 [`docs/ENVIRONMENT_AND_APPLICATION_DEFAULTS.md`](docs/ENVIRONMENT_AND_APPLICATION_DEFAULTS.md)：检索为内置 CDP 浏览器优先、Chrome DevTools 备选；全文为 Zotero MCP 优先、本地只读桥接备选；统计为 R。
 - 全文获取不等于事实缺失。不可获取、附件待确认、全文待审、报告内未报告、所有关联来源均未报告、全文审阅后仍无法判断分别记录；未获取报告进入逐条人工获取队列，用户确认正确的 Zotero 条目/附件后，回到同一阶段续跑。相关状态由阶段账本校验，来源关联图谱通过 SHA-256 固定。
 - 新项目沿用既有图表合同；新流程不会自行改变图表外观。已发表研究的复现及校准只在用户明确提出复现任务时加载。
-- 所有新研究采用“先填表、后生成稿件”的投稿模式：检索附件逐行记录每个数据库的完整检索式、日期、限制、命中数、导出哈希和复核状态；筛选、全文获取、提取、偏倚风险、统计综合、确定性和报告阶段均有对应模板。必需工件、来源定位、SHA-256 和双 reviewer 审批齐全后，才释放投稿包。
+- 所有新研究采用“先填表、后生成稿件”的投稿模式：干预型 PICOS 默认用 P+I 查全，C/O 只有在方案写明稳定索引/报告和理由时才启用；语言、日期、人群、文献类型和研究设计限制也不默认启用。检索附件按数据库原生语法逐行记录概念块、过滤器、限制、日期、命中数、导出哈希和复核状态；折叠后的生成式执行检索式单独保存并锁定哈希，默认不直接放入呈现附件，真正运行后还要附上 exact-as-run 历史/导出记录。筛选、全文获取、提取、偏倚风险、统计综合、确定性和报告阶段均有对应模板。必需工件、来源定位、SHA-256 和双 reviewer 审批齐全后，才释放投稿包。
 
 ### 强制开源 NMA 图表与 Figure 1 固定范式（v2026-09-21 最新版）
 

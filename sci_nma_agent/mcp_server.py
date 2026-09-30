@@ -20,6 +20,11 @@ def handle_call_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any
         queries = QueryHarmonizer.harmonize(pico)
         return {"content": [{"type": "text", "text": json.dumps(queries, indent=2)}]}
 
+    elif tool_name == "build_search_strategy":
+        pico = arguments.get("pico", {})
+        strategy = QueryHarmonizer.appendix_safe_strategy(pico)
+        return {"content": [{"type": "text", "text": json.dumps(strategy, ensure_ascii=False, indent=2)}]}
+
     elif tool_name == "validate_prisma_flow":
         flow_data = arguments.get("flow_data", {})
         passed, errors, metrics = Gate1SearchFlow.validate_prisma_flow(flow_data)
@@ -52,7 +57,16 @@ def main():
     tools_def = [
         {
             "name": "build_search_query",
-            "description": "Generate native search queries across PubMed, Embase, Cochrane, WoS, and Scopus from PICO.",
+            "description": "Generate backward-compatible one-line execution queries across PubMed, Embase, Cochrane, WoS, and Scopus from PICOS.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"pico": {"type": "object"}},
+                "required": ["pico"]
+            }
+        },
+        {
+            "name": "build_search_strategy",
+            "description": "Generate an appendix-safe, line-by-line native PICOS search strategy. Population and intervention are required; comparator and outcome blocks are opt-in.",
             "inputSchema": {
                 "type": "object",
                 "properties": {"pico": {"type": "object"}},

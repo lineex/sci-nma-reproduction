@@ -15,6 +15,34 @@ class EmbaseQueryBuilder:
         "'crossover procedure'/exp OR random*:ti,ab OR placebo*:ti,ab OR trial:ti)"
     )
 
+    @staticmethod
+    def _format_terms(
+        terms: List[str],
+        emtree_mapping: Optional[Dict[str, str]] = None,
+    ) -> str:
+        if not terms:
+            raise ValueError("Embase search terms must contain at least one value")
+        clauses = []
+        for term in terms:
+            value = str(term).strip()
+            if not value:
+                continue
+            clauses.append(f"'{value}':ti,ab,kw")
+            if emtree_mapping and value in emtree_mapping:
+                clauses.append(f"'{emtree_mapping[value]}'/exp")
+        if not clauses:
+            raise ValueError("Embase search terms must contain at least one non-empty value")
+        return f"({' OR '.join(clauses)})"
+
+    @classmethod
+    def build_concept_clause(
+        cls,
+        terms: List[str],
+        emtree_mapping: Optional[Dict[str, str]] = None,
+    ) -> str:
+        """Return a native Embase concept block without filters or limits."""
+        return cls._format_terms(terms, emtree_mapping)
+
     @classmethod
     def build_query(
         cls,
@@ -25,26 +53,20 @@ class EmbaseQueryBuilder:
         apply_rct_filter: bool = True,
         year_range: Optional[tuple] = None,
         english_only: bool = True,
-        humans_only: bool = True
+        humans_only: bool = True,
+        outcome_terms: Optional[List[str]] = None,
     ) -> str:
         """
         Build publication-grade Embase search string.
         """
-        def format_terms(terms: List[str]) -> str:
-            clauses = []
-            for t in terms:
-                clauses.append(f"'{t}':ti,ab,kw")
-                if emtree_mapping and t in emtree_mapping:
-                    clauses.append(f"'{emtree_mapping[t]}'/exp")
-            return f"({' OR '.join(clauses)})"
-
-        pop_clause = format_terms(population_terms)
-        int_clause = format_terms(intervention_terms)
+        pop_clause = cls.build_concept_clause(population_terms, emtree_mapping)
+        int_clause = cls.build_concept_clause(intervention_terms, emtree_mapping)
         parts = [pop_clause, int_clause]
 
         if comparison_terms:
-            comp_clause = format_terms(comparison_terms)
-            parts.append(comp_clause)
+            parts.append(cls.build_concept_clause(comparison_terms, emtree_mapping))
+        if outcome_terms:
+            parts.append(cls.build_concept_clause(outcome_terms, emtree_mapping))
 
         full_query = " AND ".join(parts)
 
