@@ -40,12 +40,18 @@ statistics: R (no silent Python production fallback)
    `verification/analysis_manifest.json`. Before synthesis, replace the R
    placeholders with the exact R version, package versions, `renv.lock`,
    script paths, seed/deterministic-analysis rationale, and output hashes.
-4. A project may explicitly select Stata or another validated production
+4. `sci-nma-agent init PROJECT` also creates the form-first reporting package
+   under `reporting/`: line-by-line search supplement, supplementary-materials
+   manifest, submission checklist, manuscript/cover-letter starters,
+   reproducibility README, and risk-of-bias/synthesis/certainty tables.
+   Reporting release requires required artifacts to be present, hashed,
+   source-located, and independently approved.
+5. A project may explicitly select Stata or another validated production
    engine when the protocol records the rationale, exact versions, runtime
    lock, and independent verification. This does not change the new-project
    default and does not make the bundled Python calculators production
    estimators.
-5. Publication reproduction and calibration are separate routes. They follow
+6. Publication reproduction and calibration are separate routes. They follow
    the source study's browser, Zotero, and statistical software settings when
    fidelity to the published analysis is the objective; they do not inherit
    these new-review defaults automatically.

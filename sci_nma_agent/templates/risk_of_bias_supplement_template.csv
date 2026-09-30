@@ -1,0 +1,2 @@
+study_id,report_id,design,outcome,timepoint,tool,domain,judgment,supporting_quote_or_locator,source_file,page,reviewer_a,reviewer_b,adjudicated_judgment,adjudication_note,status
+STUDY_ID,REPORT_ID,Randomized controlled trial,PRIMARY_OUTCOME,TIMEPOINT,RoB 2,randomization process,low risk,SOURCE_LOCATOR,SOURCE_FILE,PAGE,REVIEWER_A,REVIEWER_B,LOW_RISK,ADJUDICATION_NOTE,planned

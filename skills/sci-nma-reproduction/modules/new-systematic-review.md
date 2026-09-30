@@ -14,6 +14,9 @@ effect estimates, model, or figure contents as new-review data.
 2. Execute database-specific searches and peer review through the built-in CDP
    browser first, with Chrome DevTools as the fallback. Preserve exact
    strategies, dates, counts, browser/session route, exports, and provenance.
+   Fill one row per database search line in
+   `reporting/supplementary/search_strategy_supplement.csv`; the row must be
+   sufficient to rerun the search without reading the manuscript narrative.
 3. Deduplicate while retaining source records and study/report links.
 4. Screen titles/abstracts and full texts with separate reviewer decisions,
    then document adjudication and full-text exclusion reasons.
@@ -49,6 +52,13 @@ effect estimates, model, or figure contents as new-review data.
    the bundled Python engines only for QA; formal synthesis must come from the
    locked production engine named in the protocol.
    Assess certainty and report under the applicable framework.
+8. Assemble the form-first reporting package. Complete
+   `reporting/supplementary_materials_manifest.json`,
+   `reporting/submission_package_checklist.csv`, the PRISMA 2020/PRISMA-S
+   checklists, manuscript, cover letter, and reproducibility README. Every
+   reported number must resolve to an approved upstream manifest, table,
+   figure, or locked R result artifact. Submit the complete package to the
+   reporting stage for two independent approvals.
 
 ## Stage Control
 

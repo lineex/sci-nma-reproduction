@@ -1,0 +1,2 @@
+analysis_id,estimand,outcome,contrast_or_network,study_id,report_id,estimate,ci_lower,ci_upper,effect_measure,model,estimator,tau2,i2_percent,p_value,prediction_interval,source_locator,analysis_script,output_file,sha256,status,notes
+ANALYSIS_ID,ESTIMAND,PRIMARY_OUTCOME,CONTRAST_OR_NETWORK,STUDY_ID,REPORT_ID,,,,RISK_RATIO,random_effects,REML,,,,SOURCE_LOCATOR,analysis/primary.R,results/OUTPUT_FILE.csv,,planned,

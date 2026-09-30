@@ -55,7 +55,7 @@ local bridge as fallback, and R is the default production statistics engine.
 | 7. Risk of bias | Design-specific, result-level judgements and supporting evidence | Cochrane Ch 7-8; Ch 25 for eligible non-randomized intervention studies | Tool matches design; domain judgements are independently checked; no quality-total-score substitution. Ch 9 supports study-characteristic summaries and synthesis preparation |
 | 8. Synthesis | Compatibility decision, analysis dataset/code, outputs, heterogeneity and sensitivity checks, `analysis_manifest.json` | Cochrane Ch 6, 10-11; tutorial pp. 9-15; [statistical methods and software contract](STATISTICAL_METHODS_AND_SOFTWARE.md) | Pool only clinically/methodologically coherent data; effect scale, estimator, dependency rules, software versions, hashes, deviations, and model decisions are documented |
 | 9. Certainty | Critical outcomes, GRADE/CINeMA rationale, Summary of Findings | Cochrane Ch 14 and Ch 11 for NMA | Rating rationale and reported absolute/relative effects agree with validated synthesis |
-| 10. Reporting | PRISMA flow/checklist, search appendix, limitations, final reproducibility audit | Cochrane Ch 1, 4, 10, 14; tutorial Appendix A pp. 20-21 | Two independent reviewers approve; all prior stage gates remain valid |
+| 10. Reporting | Form-first manuscript, line-by-line search supplement, PRISMA 2020/PRISMA-S checklists, extraction/RoB/synthesis/certainty supplements, cover letter, reproducibility README, final archive audit | Cochrane Ch 1, 4, 10, 14; tutorial Appendix A pp. 20-21 | Every required package artifact has a path, source locator, SHA-256 hash, and two independent approvals; all prior stage gates remain valid |
 
 ## Full-text Retrieval Through Zotero
 
@@ -127,6 +127,29 @@ provider, agent isolation, or human identity.
 The ledger is auditable and hash-chained, but hashes do not establish scientific
 truth. Method review, evidence coordinates, and human adjudication remain
 necessary.
+
+## Form-first submission package
+
+`sci-nma-agent init PROJECT` creates a journal-shaped reporting workspace:
+
+- `reporting/supplementary/search_strategy_supplement.csv`: one row per
+  database search line, including exact syntax, fields, controlled vocabulary,
+  limits, date/timezone, hit count, export hash, query/history locator,
+  peer-review status, and rerun instructions.
+- `reporting/supplementary_materials_manifest.json`: release inventory linking
+  each supplement, manuscript, cover letter, checklist, figure, table, code,
+  and reproducibility artifact to its stage, source locator, status, hash, and
+  independent sign-offs.
+- `reporting/submission_package_checklist.csv`: fillable crosswalk used to
+  confirm that each required output is present and ready for journal upload.
+- `reporting/reproducibility_readme.md`, `reporting/manuscript.md`, and
+  `reporting/cover_letter.md`: structured starting documents populated only
+  after upstream gates approve the evidence.
+
+The reporting gate validates this manifest and requires every required path to
+be submitted with the stage. A narrative manuscript is not a substitute for
+the underlying search, screening, retrieval, extraction, risk-of-bias,
+synthesis, or certainty tables.
 
 ## Preserved Output Contract
 

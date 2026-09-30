@@ -50,6 +50,24 @@ retrieve full text through Zotero MCP first and the read-only local Zotero
 bridge second. Record the selected route and fallback reason in the stage
 artifacts.
 
+Use a **form-first, journal-shaped package** for every new review:
+
+- Complete the line-by-line search supplement at
+  `reporting/supplementary/search_strategy_supplement.csv`. Each database line
+  records the exact statement, field tags, controlled vocabulary, free-text
+  terms, limits, date/timezone, hit count, export hash, history/query locator,
+  peer review, and rerun instructions.
+- Complete the paired screening, Zotero retrieval, extraction, risk-of-bias,
+  synthesis, and certainty supplements from the initialized templates. Do not
+  reconstruct these details from narrative prose after the fact.
+- Generate the manuscript, cover letter, reproducibility README, figures,
+  tables, and supplementary archive from approved, hash-bound artifacts.
+  `reporting/supplementary_materials_manifest.json` and
+  `reporting/submission_package_checklist.csv` are the release inventory.
+- The reporting stage requires every required artifact, project-relative path,
+  source locator, SHA-256 hash, and two independent reporting approvals before
+  a submission package is released.
+
 Do not load all role cards up front. For each new-review stage, assemble only
 the generic executor or reviewer card, the relevant stage-method row, the
 approved protocol, and that stage's declared inputs.

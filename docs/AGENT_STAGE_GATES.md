@@ -51,6 +51,15 @@ and full-text eligibility manifests.
 The ledger rejects a submission when its required manifest is absent, invalid,
 or detached from the upstream linkage artifact.
 
+The terminal `reporting` stage is a form-first submission gate. Its submitted
+`reporting/supplementary_materials_manifest.json` must declare PRISMA 2020 and
+PRISMA-S, and every required artifact must exist, be marked `complete`,
+`approved`, or `released`, carry a SHA-256 hash, and include an executor plus
+two distinct reviewer sign-offs. The non-circular submission archive is also
+submitted and hash-bound. The ledger revalidates the manifest, archive, and all
+required artifact hashes before either reporting review and before the package
+is released; changing a file after submission invalidates the gate.
+
 ## Full-text State Separation
 
 Keep three fields independent on each report/fact: `retrieval_status`,

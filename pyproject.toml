@@ -76,4 +76,4 @@ where = ["."]
 include = ["sci_nma_agent*"]
 
 [tool.setuptools.package-data]
-sci_nma_agent = ["templates/*.json", "templates/*.csv"]
+sci_nma_agent = ["templates/*.json", "templates/*.csv", "templates/*.md"]

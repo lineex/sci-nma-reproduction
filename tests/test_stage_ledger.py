@@ -16,6 +16,7 @@ from sci_nma_agent.workflow.protocol_validation import (
     validate_full_text_retrieval_manifest,
     validate_methods_source_log,
     validate_review_protocol,
+    validate_submission_package_manifest,
     validate_title_abstract_screening_manifest,
 )
 import sci_nma_agent.workflow.stage_ledger as stage_ledger_module
@@ -354,6 +355,63 @@ def test_protocol_requires_browser_zotero_and_r_execution_defaults():
     protocol["execution_defaults"]["statistics"]["primary_engine"] = "Python"
     errors = validate_review_protocol(protocol)
     assert any("execution_defaults.statistics.primary_engine" in error for error in errors)
+
+
+def test_protocol_requires_form_first_submission_package_contract():
+    protocol = json.loads(_valid_protocol_text())
+    protocol.pop("reporting_package")
+    errors = validate_review_protocol(protocol)
+    assert any("reporting_package" in error for error in errors)
+
+    protocol = json.loads(_valid_protocol_text())
+    protocol["search"]["search_strategy_reporting_standard"] = "custom"
+    errors = validate_review_protocol(protocol)
+    assert any("search_strategy_reporting_standard" in error for error in errors)
+
+
+def test_submission_package_manifest_requires_abstract_reporting_gate():
+    root = Path(__file__).parents[1]
+    manifest = json.loads(
+        (root / "data" / "templates" / "supplementary_materials_manifest_template.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    manifest["reporting_guidelines"] = [item for item in manifest["reporting_guidelines"] if item["name"] != "PRISMA 2020 for Abstracts"]
+    errors = validate_submission_package_manifest(manifest)
+    assert any("PRISMA 2020 for Abstracts" in error for error in errors)
+
+
+def test_submission_package_manifest_requires_completed_hash_bound_release_checks():
+    root = Path(__file__).parents[1]
+    manifest = json.loads(
+        (root / "data" / "templates" / "supplementary_materials_manifest_template.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    manifest["artifacts"][0]["status"] = "complete"
+    errors = validate_submission_package_manifest(manifest)
+    assert any("release_checks" in error for error in errors)
+    assert any("completed artifact" in error for error in errors)
+
+
+def test_submission_package_manifest_rejects_planned_required_artifact_even_with_release_checks():
+    root = Path(__file__).parents[1]
+    manifest = json.loads(
+        (root / "data" / "templates" / "supplementary_materials_manifest_template.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    manifest["release_checks"] = {
+        "all_required_artifacts_present": True,
+        "all_required_artifact_hashes_recorded": True,
+        "all_upstream_stage_gates_approved": True,
+        "search_strategy_peer_review_complete": True,
+        "prisma_2020_complete": True,
+        "prisma_s_complete": True,
+        "journal_author_instructions_checked": True,
+    }
+    errors = validate_submission_package_manifest(manifest)
+    assert any("required artifact" in error for error in errors)
 
 
 def test_analysis_manifest_requires_methods_software_and_hashed_outputs(tmp_path):

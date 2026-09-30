@@ -47,6 +47,12 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
    - Submission-Ready Word Manuscript (`.docx` with XML anti-split tables)
    - Formula-Backed Master Research Database (`.xlsx` with live formulas)
    - Academic Presentation Slide Deck (16:9 widescreen `.pptx`)
+6. **Form-first submission package**:
+   - Exact line-by-line search-strategy supplement with rerun metadata.
+   - Paired screening, Zotero retrieval, extraction, risk-of-bias, synthesis,
+     and certainty supplements.
+   - Structured manuscript, cover letter, reproducibility README, PRISMA
+     checklists, and hash-bound submission inventory.
 
 ---
 
@@ -228,6 +234,7 @@ The framework strictly enforces the **Anti-Shortcut Protocol**: Every single pha
 - 新项目的环境与应用默认值集中记录在 [`docs/ENVIRONMENT_AND_APPLICATION_DEFAULTS.md`](docs/ENVIRONMENT_AND_APPLICATION_DEFAULTS.md)：检索为内置 CDP 浏览器优先、Chrome DevTools 备选；全文为 Zotero MCP 优先、本地只读桥接备选；统计为 R。
 - 全文获取不等于事实缺失。不可获取、附件待确认、全文待审、报告内未报告、所有关联来源均未报告、全文审阅后仍无法判断分别记录；未获取报告进入逐条人工获取队列，用户确认正确的 Zotero 条目/附件后，回到同一阶段续跑。相关状态由阶段账本校验，来源关联图谱通过 SHA-256 固定。
 - 新项目沿用既有图表合同；新流程不会自行改变图表外观。已发表研究的复现及校准只在用户明确提出复现任务时加载。
+- 所有新研究采用“先填表、后生成稿件”的投稿模式：检索附件逐行记录每个数据库的完整检索式、日期、限制、命中数、导出哈希和复核状态；筛选、全文获取、提取、偏倚风险、统计综合、确定性和报告阶段均有对应模板。必需工件、来源定位、SHA-256 和双 reviewer 审批齐全后，才释放投稿包。
 
 ### 强制开源 NMA 图表与 Figure 1 固定范式（v2026-09-21 最新版）
 

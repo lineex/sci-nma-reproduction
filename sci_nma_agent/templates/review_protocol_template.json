@@ -73,6 +73,10 @@
     "planned_search_date": "",
     "date_last_searched": "",
     "search_strategies_directory": "search_strategies",
+    "search_strategy_supplement_path": "reporting/supplementary/search_strategy_supplement.csv",
+    "search_strategy_template": "data/templates/search_strategy_supplement_template.csv",
+    "search_strategy_reporting_standard": "PRISMA-S",
+    "search_strategy_row_contract": "One row per database line with exact syntax, fields, controlled vocabulary, limits, date/timezone, hit count, export hash, history/query locator, peer review, and rerun instructions",
     "citation_searching": [],
     "restrictions_and_rationale": "",
     "search_peer_review_plan": ""
@@ -237,5 +241,16 @@
     "format_profile": "user_fixed",
     "contract_path": "data/nma_figure_table_spec_template.json",
     "change_policy": "Preserve the approved project figure/table format contract unless the project owner explicitly changes it."
+  },
+  "reporting_package": {
+    "package_manifest_path": "reporting/supplementary_materials_manifest.json",
+    "submission_checklist_path": "reporting/submission_package_checklist.csv",
+    "reproducibility_readme_path": "reporting/reproducibility_readme.md",
+    "manuscript_path": "reporting/manuscript.md",
+    "cover_letter_path": "reporting/cover_letter.md",
+    "supplementary_directory": "reporting/supplementary",
+    "reporting_standards": ["PRISMA 2020", "PRISMA-S"],
+    "form_first_policy": "Complete the declared templates and manifests before narrative drafting; manuscript, tables, figures, and supplements must be generated from approved, hash-bound artifacts.",
+    "submission_release_rule": "Release only when every required artifact has a project-relative path, source locator, SHA-256 hash, two independent approvals, and a final package audit."
   }
 }

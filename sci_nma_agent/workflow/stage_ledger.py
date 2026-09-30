@@ -19,6 +19,7 @@ from .protocol_validation import (
     validate_full_text_retrieval_manifest_file,
     validate_methods_source_log_for_protocol_file,
     validate_review_protocol_file,
+    validate_submission_package_manifest_file,
     validate_study_report_map_file,
     validate_title_abstract_screening_manifest_file,
 )
@@ -718,6 +719,55 @@ class AgentStageLedger:
                     raise StageLedgerError("Analysis manifest validation failed: " + "; ".join(analysis_errors))
                 if analysis_data.get("protocol_sha256") != approved_protocol_records[0].get("sha256"):
                     raise StageLedgerError("Analysis manifest protocol_sha256 does not match the approved protocol artifact")
+            elif stage_id == "reporting":
+                approved_protocol_records = [
+                    record
+                    for record in ledger["stages"]["protocol"].get("artifact_manifest", [])
+                    if Path(record["path"]).name == "review_protocol.json"
+                ]
+                if len(approved_protocol_records) != 1:
+                    raise StageLedgerError("Approved protocol evidence must contain exactly one review_protocol.json")
+                protocol_path = self.project_dir / approved_protocol_records[0]["path"]
+                try:
+                    approved_protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    raise StageLedgerError(f"Unable to read approved review protocol: {exc}") from exc
+                declared_path = approved_protocol.get("reporting_package", {}).get("package_manifest_path")
+                manifest_paths = [
+                    self.project_dir / record["path"]
+                    for record in artifact_manifest
+                    if record["path"] == declared_path
+                ]
+                if len(manifest_paths) != 1:
+                    raise StageLedgerError(
+                        "Reporting stage must submit exactly one submission package manifest at the protocol-declared path"
+                    )
+                manifest_errors = validate_submission_package_manifest_file(
+                    manifest_paths[0], self.project_dir, protocol_path
+                )
+                if manifest_errors:
+                    raise StageLedgerError(
+                        "Submission package manifest validation failed: " + "; ".join(manifest_errors)
+                    )
+                manifest_data = json.loads(manifest_paths[0].read_text(encoding="utf-8"))
+                required_paths = {
+                    str(item.get("path"))
+                    for item in manifest_data.get("artifacts", [])
+                    if isinstance(item, dict) and item.get("required_for_submission") is True
+                }
+                # The archive is a release artifact too.  Track it in the
+                # stage ledger so later evidence-integrity checks detect an
+                # archive being replaced after the package was approved.
+                archive_path = manifest_data.get("archive", {}).get("archive_path")
+                if isinstance(archive_path, str) and archive_path:
+                    required_paths.add(archive_path)
+                submitted_paths = {record["path"] for record in artifact_manifest}
+                missing_paths = sorted(path for path in required_paths if path and path not in submitted_paths)
+                if missing_paths:
+                    raise StageLedgerError(
+                        "Reporting stage must submit the package manifest and every required submission artifact: "
+                        f"missing {missing_paths}"
+                    )
             stage["artifact_manifest"] = artifact_manifest
             stage["summary"] = summary
             stage["submitted_at"] = _now()
@@ -850,6 +900,8 @@ class AgentStageLedger:
             self._assert_manifest_current(stage.get("artifact_manifest", []), stage_id, "stage artifact")
             if stage_id == "synthesis" and stage.get("artifact_manifest"):
                 self._assert_synthesis_manifest_current(stage)
+            if stage_id == "reporting" and stage.get("artifact_manifest"):
+                self._assert_reporting_manifest_current(stage)
             for review in stage.get("reviews", []):
                 self._assert_manifest_current([review["report"]], stage_id, "review report")
             for attempt in stage.get("attempts", []):
@@ -889,6 +941,8 @@ class AgentStageLedger:
             self._assert_manifest_current([review["report"]], stage_id, "review report")
         if stage_id == "synthesis" and stage.get("artifact_manifest"):
             self._assert_synthesis_manifest_current(stage)
+        if stage_id == "reporting" and stage.get("artifact_manifest"):
+            self._assert_reporting_manifest_current(stage)
 
     def _assert_manifest_current(self, manifest: List[Dict[str, Any]], stage_id: str, kind: str) -> None:
         for record in manifest:
@@ -946,6 +1000,63 @@ class AgentStageLedger:
         missing_paths = sorted(path for path in required_paths if path and path not in submitted_paths)
         if missing_paths:
             raise StageLedgerError(f"Synthesis evidence is missing declared artifacts: {missing_paths}")
+
+    def _assert_reporting_manifest_current(self, stage: Dict[str, Any]) -> None:
+        """Re-validate the package manifest and all release-bound artifacts.
+
+        Reporting is the terminal gate, so the package manifest and archive
+        must remain hash-bound after submission and after both independent
+        reviews.  Re-running the validator also catches a manifest edit that
+        changes a required artifact path/status/hash or a release check.
+        """
+        protocol_records = [
+            record
+            for record in self.load()["stages"]["protocol"].get("artifact_manifest", [])
+            if Path(record.get("path", "")).name == "review_protocol.json"
+        ]
+        if len(protocol_records) != 1:
+            raise StageLedgerError("Approved protocol evidence must contain exactly one review_protocol.json")
+        protocol_path = self.project_dir / protocol_records[0]["path"]
+        try:
+            protocol_data = json.loads(protocol_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise StageLedgerError(f"Unable to read approved review protocol: {exc}") from exc
+        declared_path = protocol_data.get("reporting_package", {}).get("package_manifest_path")
+        records = [
+            record for record in stage.get("artifact_manifest", [])
+            if record.get("path") == declared_path
+        ]
+        if len(records) != 1:
+            raise StageLedgerError(
+                "Reporting evidence must contain exactly one package manifest at the protocol-declared path"
+            )
+        manifest_path = self.project_dir / records[0]["path"]
+        errors = validate_submission_package_manifest_file(
+            manifest_path,
+            self.project_dir,
+            protocol_path,
+        )
+        if errors:
+            raise StageLedgerError("Submission package manifest evidence is stale or inconsistent: " + "; ".join(errors))
+        try:
+            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise StageLedgerError(f"Unable to read submission package manifest evidence: {exc}") from exc
+        required_paths = {
+            str(item.get("path"))
+            for item in manifest_data.get("artifacts", [])
+            if isinstance(item, dict) and item.get("required_for_submission") is True
+        }
+        archive_path = manifest_data.get("archive", {}).get("archive_path")
+        if isinstance(archive_path, str) and archive_path:
+            required_paths.add(archive_path)
+        submitted_paths = {record.get("path") for record in stage.get("artifact_manifest", [])}
+        missing_paths = sorted(path for path in required_paths if path and path not in submitted_paths)
+        if missing_paths:
+            raise StageLedgerError(
+                "Reporting evidence is missing declared submission artifacts: "
+                f"{missing_paths}"
+            )
 
     def _archive_active_evidence(self, ledger: Dict[str, Any], stage_id: str) -> None:
         stage = ledger["stages"][stage_id]

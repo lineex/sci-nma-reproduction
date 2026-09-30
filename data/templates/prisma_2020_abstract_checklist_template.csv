@@ -1,0 +1,13 @@
+item_number,item_name,checklist_requirement,abstract_location,status,reviewer_notes
+1,Title,"Identify the report as a systematic review.",,not_assessed,
+2,Objectives,"Provide an explicit statement of the main objective(s) or question(s).",,not_assessed,
+3,Eligibility criteria,"Specify inclusion and exclusion criteria for the review.",,not_assessed,
+4,Information sources,"Specify the information sources and the last search date for each.",,not_assessed,
+5,Risk of bias,"Specify methods used to assess risk of bias in included studies.",,not_assessed,
+6,Synthesis of results,"Specify the methods used to present and synthesise results.",,not_assessed,
+7,Included studies,"Give the total number of included studies and participants, and summarise relevant characteristics.",,not_assessed,
+8,Synthesis of results,"Present results for the main outcomes, preferably indicating the number of studies and participants for each; when meta-analysis was done, report the summary estimate and its precision, and direction of effect.",,not_assessed,
+9,Limitations of evidence,"Provide a brief summary of limitations of the evidence (e.g., risk of bias, inconsistency, imprecision).",,not_assessed,
+10,Interpretation,"Provide a general interpretation of the results and important implications.",,not_assessed,
+11,Funding,"Specify the primary source of funding for the review.",,not_assessed,
+12,Registration,"Provide the register name and registration number.",,not_assessed,

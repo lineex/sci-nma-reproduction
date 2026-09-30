@@ -58,6 +58,7 @@ def test_init_copies_gated_manifest_and_methods_source_templates(tmp_path, monke
     output = capsys.readouterr().out
     assert "Runtime defaults: search CDP built-in browser -> Chrome DevTools" in output
     assert "full text Zotero MCP -> local read-only; statistics R" in output
+    assert "Form-first reporting package initialized" in output
 
     expected = [
         "verification/analysis_manifest.json",
@@ -66,6 +67,14 @@ def test_init_copies_gated_manifest_and_methods_source_templates(tmp_path, monke
         "screening/full_text_retrieval_manifest.json",
         "screening/full_text_screening_manifest.json",
         "data/fact_status_manifest.json",
+        "reporting/supplementary/search_strategy_supplement.csv",
+        "reporting/supplementary/prisma_2020_abstract_checklist.csv",
+        "reporting/submission_package_checklist.csv",
+        "reporting/supplementary_materials_manifest.json",
+        "reporting/reproducibility_readme.md",
+        "reporting/supplementary/risk_of_bias_supplement.csv",
+        "reporting/supplementary/synthesis_results_supplement.csv",
+        "reporting/supplementary/certainty_supplement.csv",
     ]
     assert all((tmp_path / relative).is_file() for relative in expected)
 

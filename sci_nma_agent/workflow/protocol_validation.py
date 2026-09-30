@@ -54,6 +54,14 @@ _REVIEWED_FACT_STATES = {
 _SHA256 = re.compile(r"^[a-fA-F0-9]{64}$")
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def _is_filled(value: Any) -> bool:
     if isinstance(value, str):
         normalized = value.strip()
@@ -207,6 +215,178 @@ def _validate_execution_defaults(protocol: Dict[str, Any], errors: List[str]) ->
                 errors.append(
                     f"execution_defaults.statistics.{field} must default to {expected!r}"
                 )
+
+
+def _validate_reporting_package_protocol(protocol: Dict[str, Any], errors: List[str]) -> None:
+    """Require a form-first, journal-shaped reporting package contract."""
+    reporting = protocol.get("reporting_package")
+    if not isinstance(reporting, dict):
+        errors.append("reporting_package must declare the submission package and form-first reporting paths")
+        return
+    required_text = (
+        "package_manifest_path",
+        "submission_checklist_path",
+        "reproducibility_readme_path",
+        "manuscript_path",
+        "cover_letter_path",
+        "supplementary_directory",
+        "form_first_policy",
+        "submission_release_rule",
+    )
+    for field in required_text:
+        value = reporting.get(field)
+        if not _is_filled(value):
+            errors.append(f"reporting_package.{field} must be completed")
+        elif field.endswith("_path") or field.endswith("_directory"):
+            if not _is_safe_project_relative_path(value):
+                errors.append(f"reporting_package.{field} must be a safe project-relative path")
+    standards = reporting.get("reporting_standards")
+    if (
+        not isinstance(standards, list)
+        or not {"PRISMA 2020", "PRISMA-S"}.issubset({str(item) for item in standards})
+    ):
+        errors.append("reporting_package.reporting_standards must include PRISMA 2020 and PRISMA-S")
+
+
+def validate_submission_package_manifest(
+    manifest: Dict[str, Any],
+    project_dir: Optional[Union[str, Path]] = None,
+    protocol: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    """Validate the final journal-shaped package and its hash-bound artifacts."""
+    errors: List[str] = []
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+        return ["submission package manifest schema_version must be 1"]
+    for field in ("project_id", "manuscript_title", "package_profile", "format_policy"):
+        if not _is_filled(manifest.get(field)):
+            errors.append(f"submission package manifest {field} must be completed")
+    if protocol and _is_filled(protocol.get("project", {}).get("id")):
+        if manifest.get("project_id") != protocol["project"]["id"]:
+            errors.append("submission package manifest project_id does not match protocol project.id")
+
+    guidelines = manifest.get("reporting_guidelines")
+    if not isinstance(guidelines, list) or not guidelines:
+        errors.append("submission package manifest reporting_guidelines must be a non-empty list")
+    else:
+        guideline_names = {str(item.get("name")) for item in guidelines if isinstance(item, dict)}
+        for index, guideline in enumerate(guidelines):
+            if not isinstance(guideline, dict):
+                errors.append(f"submission package manifest reporting_guidelines[{index}] must be an object")
+                continue
+            for field in ("name", "version", "checklist_path"):
+                if not _is_filled(guideline.get(field)):
+                    errors.append(f"submission package manifest reporting_guidelines[{index}].{field} must be completed")
+            if not _is_safe_project_relative_path(guideline.get("checklist_path")):
+                errors.append(f"submission package manifest reporting_guidelines[{index}].checklist_path must be project-relative")
+        for required in ("PRISMA 2020", "PRISMA 2020 for Abstracts", "PRISMA-S"):
+            if required not in guideline_names:
+                errors.append(f"submission package manifest must declare {required}")
+
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        errors.append("submission package manifest artifacts must be a non-empty list")
+        artifacts = []
+    seen_ids: set[str] = set()
+    seen_paths: set[str] = set()
+    for index, artifact in enumerate(artifacts):
+        prefix = f"submission package manifest artifacts[{index}]"
+        if not isinstance(artifact, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        for field in ("artifact_id", "stage", "artifact_type", "path", "source_locator", "status"):
+            if not _is_filled(artifact.get(field)):
+                errors.append(f"{prefix}.{field} must be completed")
+        artifact_id = str(artifact.get("artifact_id", "")).strip()
+        path = artifact.get("path")
+        if artifact_id in seen_ids:
+            errors.append(f"{prefix}.artifact_id is duplicated")
+        seen_ids.add(artifact_id)
+        if not _is_safe_project_relative_path(path):
+            errors.append(f"{prefix}.path must be a safe project-relative path")
+        elif path in seen_paths:
+            errors.append(f"{prefix}.path is duplicated")
+        seen_paths.add(str(path))
+        if not isinstance(artifact.get("required_for_submission"), bool):
+            errors.append(f"{prefix}.required_for_submission must be boolean")
+        status = str(artifact.get("status", "")).strip().casefold()
+        if status not in {"planned", "complete", "approved", "released"}:
+            errors.append(f"{prefix}.status must be planned, complete, approved, or released")
+        if status in {"complete", "approved", "released"} and not _SHA256.fullmatch(str(artifact.get("sha256", ""))):
+            errors.append(f"{prefix}.sha256 must be a SHA-256 hash for a completed artifact")
+        if artifact.get("required_for_submission") is True:
+            if status not in {"complete", "approved", "released"}:
+                errors.append(f"{prefix}.status must be complete, approved, or released for a required artifact")
+            signoff = artifact.get("review_signoff")
+            if not isinstance(signoff, dict):
+                errors.append(f"{prefix}.review_signoff must record executor and two independent reviewers")
+            else:
+                for signoff_field in ("executor", "reviewer_a", "reviewer_b", "approved_at"):
+                    if not _is_filled(signoff.get(signoff_field)):
+                        errors.append(f"{prefix}.review_signoff.{signoff_field} must be completed for a required artifact")
+                if _is_filled(signoff.get("reviewer_a")) and _is_filled(signoff.get("reviewer_b")) and signoff.get("reviewer_a") == signoff.get("reviewer_b"):
+                    errors.append(f"{prefix}.review_signoff.reviewer_a and reviewer_b must be independent")
+        if project_dir is not None and _is_safe_project_relative_path(path):
+            artifact_path = Path(project_dir).expanduser().resolve() / Path(*PurePosixPath(path).parts)
+            if not artifact_path.is_file():
+                errors.append(f"{prefix}.path does not exist in the review project")
+            elif status in {"complete", "approved", "released"} and _SHA256.fullmatch(str(artifact.get("sha256", ""))):
+                if _sha256(artifact_path) != str(artifact["sha256"]).lower():
+                    errors.append(f"{prefix}.sha256 does not match the project artifact")
+
+    release_checks = manifest.get("release_checks")
+    if not isinstance(release_checks, dict):
+        errors.append("submission package manifest release_checks must be an object")
+    else:
+        for field in (
+            "all_required_artifacts_present",
+            "all_required_artifact_hashes_recorded",
+            "all_upstream_stage_gates_approved",
+            "search_strategy_peer_review_complete",
+            "prisma_2020_complete",
+            "prisma_2020_abstract_complete",
+            "prisma_s_complete",
+            "journal_author_instructions_checked",
+        ):
+            if release_checks.get(field) is not True:
+                errors.append(f"submission package manifest release_checks.{field} must be true for release")
+
+    archive = manifest.get("archive")
+    if not isinstance(archive, dict):
+        errors.append("submission package manifest archive must be an object")
+    else:
+        if not _is_safe_project_relative_path(archive.get("archive_path")):
+            errors.append("submission package manifest archive.archive_path must be project-relative")
+        if not _SHA256.fullmatch(str(archive.get("archive_sha256", ""))):
+            errors.append("submission package manifest archive.archive_sha256 must be a SHA-256 hash")
+        if not _is_filled(archive.get("contents_policy")):
+            errors.append("submission package manifest archive.contents_policy must document non-circular archive contents")
+        if project_dir is not None and _is_safe_project_relative_path(archive.get("archive_path")):
+            archive_path = Path(project_dir).expanduser().resolve() / Path(
+                *PurePosixPath(archive["archive_path"]).parts
+            )
+            if not archive_path.is_file():
+                errors.append("submission package manifest archive.archive_path does not exist in the review project")
+            elif _SHA256.fullmatch(str(archive.get("archive_sha256", ""))):
+                if _sha256(archive_path) != str(archive["archive_sha256"]).lower():
+                    errors.append("submission package manifest archive.archive_sha256 does not match the project archive")
+    return errors
+
+
+def validate_submission_package_manifest_file(
+    path: Union[str, Path],
+    project_dir: Optional[Union[str, Path]] = None,
+    protocol_path: Optional[Union[str, Path]] = None,
+) -> List[str]:
+    try:
+        manifest = json.loads(Path(path).read_text(encoding="utf-8"))
+        protocol = (
+            json.loads(Path(protocol_path).read_text(encoding="utf-8"))
+            if protocol_path is not None
+            else None
+        )
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"Unable to read submission package manifest or protocol JSON: {exc}"]
+    return validate_submission_package_manifest(manifest, project_dir, protocol)
 
 
 def validate_full_text_fact_state(
@@ -1076,6 +1256,7 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
         return ["schema_version must be 2 and the protocol root must be a JSON object"]
 
     _validate_execution_defaults(protocol, errors)
+    _validate_reporting_package_protocol(protocol, errors)
 
     method_sources = protocol.get("methods_sources")
     chapters = method_sources.get("cochrane_chapters_used") if isinstance(method_sources, dict) else None
@@ -1108,6 +1289,10 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
         "eligibility.multiple_reports_linkage_rule",
         "search.planned_date_range",
         "search.planned_search_date",
+        "search.search_strategy_supplement_path",
+        "search.search_strategy_template",
+        "search.search_strategy_reporting_standard",
+        "search.search_strategy_row_contract",
         "search.restrictions_and_rationale",
         "search.search_peer_review_plan",
         "selection.conflict_resolution",
@@ -1145,6 +1330,13 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
         "figure_table_contract.contract_path",
     ):
         _need_text(protocol, path, errors)
+
+    for path in ("search.search_strategy_supplement_path", "search.search_strategy_template"):
+        value = _value(protocol, path)
+        if _is_filled(value) and not _is_safe_project_relative_path(value):
+            errors.append(f"{path} must be a safe project-relative path")
+    if _value(protocol, "search.search_strategy_reporting_standard") != "PRISMA-S":
+        errors.append("search.search_strategy_reporting_standard must be PRISMA-S")
 
     for path in (
         "eligibility.inclusion_criteria",

@@ -1,0 +1,403 @@
+{
+  "schema_version": 1,
+  "project_id": "PROJECT_ID",
+  "manuscript_title": "MANUSCRIPT_TITLE",
+  "package_profile": "journal_supplementary_materials_with_reproducibility_archive",
+  "format_policy": "Retain the approved figure/table contract; use journal-ready editable files and provenance-preserving supplementary tables.",
+  "reporting_guidelines": [
+    {
+      "name": "PRISMA 2020",
+      "version": "2020",
+      "completed": false,
+      "checklist_path": "reporting/supplementary/prisma_2020_checklist.csv",
+      "notes": ""
+    },
+    {
+      "name": "PRISMA 2020 for Abstracts",
+      "version": "2021",
+      "completed": false,
+      "checklist_path": "reporting/supplementary/prisma_2020_abstract_checklist.csv",
+      "notes": ""
+    },
+    {
+      "name": "PRISMA-S",
+      "version": "2021",
+      "completed": false,
+      "checklist_path": "reporting/supplementary/prisma_s_checklist.csv",
+      "notes": ""
+    }
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "prisma_2020_checklist",
+      "stage": "reporting",
+      "artifact_type": "reporting_checklist",
+      "required_for_submission": true,
+      "path": "reporting/supplementary/prisma_2020_checklist.csv",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "PRISMA 2020 item-level checklist with manuscript locations and evidence artifacts",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "data/templates/prisma_2020_checklist_template.csv",
+      "file_format": "CSV",
+      "manuscript_location": "PRISMA 2020 checklist",
+      "content_contract": "PRISMA 2020 item-level location crosswalk",
+      "dependency_artifacts": []
+    },
+    {
+      "artifact_id": "submission_checklist",
+      "stage": "reporting",
+      "artifact_type": "submission_checklist",
+      "required_for_submission": true,
+      "path": "reporting/submission_package_checklist.csv",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "Completed project-to-submission crosswalk with required paths, owners, reviewers, and release states",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "",
+      "file_format": "",
+      "manuscript_location": "",
+      "content_contract": "",
+      "dependency_artifacts": []
+    },
+    {
+      "artifact_id": "prisma_2020_abstract_checklist",
+      "stage": "reporting",
+      "artifact_type": "reporting_abstract_checklist",
+      "required_for_submission": true,
+      "path": "reporting/supplementary/prisma_2020_abstract_checklist.csv",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "PRISMA 2020 for Abstracts item-level checklist with abstract locations and evidence artifacts",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "data/templates/prisma_2020_abstract_checklist_template.csv",
+      "file_format": "CSV",
+      "manuscript_location": "Abstract reporting checklist",
+      "content_contract": "PRISMA 2020 for Abstracts item-level location crosswalk",
+      "dependency_artifacts": []
+    },
+    {
+      "artifact_id": "prisma_s_checklist",
+      "stage": "reporting",
+      "artifact_type": "reporting_checklist",
+      "required_for_submission": true,
+      "path": "reporting/supplementary/prisma_s_checklist.csv",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "PRISMA-S 16-item checklist with manuscript locations and search evidence artifacts",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "data/templates/prisma_s_checklist_template.csv",
+      "file_format": "CSV",
+      "manuscript_location": "PRISMA-S checklist",
+      "content_contract": "PRISMA-S 16-item search reporting crosswalk",
+      "dependency_artifacts": [
+        "search_strategy_supplement"
+      ]
+    },
+    {
+      "artifact_id": "search_strategy_supplement",
+      "stage": "search",
+      "artifact_type": "supplement_search_strategy",
+      "required_for_submission": true,
+      "path": "reporting/supplementary/search_strategy_supplement.csv",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "Exact line-by-line database strategies, dates, limits, hit counts, exports, and peer review",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "data/templates/search_strategy_supplement_template.csv",
+      "file_format": "CSV",
+      "manuscript_location": "Supplement 1; Methods items PRISMA 2020 6–7",
+      "content_contract": "PRISMA-S aligned one-row-per-line exact search history",
+      "dependency_artifacts": [
+        "prisma_s_checklist"
+      ]
+    },
+    {
+      "artifact_id": "screening_supplement",
+      "stage": "title_abstract_screening",
+      "artifact_type": "supplement_screening",
+      "required_for_submission": true,
+      "path": "screening/title_abstract_screening_manifest.json",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "Paired decisions, adjudication, and exclusion reasons",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "",
+      "file_format": "",
+      "manuscript_location": "",
+      "content_contract": "",
+      "dependency_artifacts": []
+    },
+    {
+      "artifact_id": "full_text_retrieval_supplement",
+      "stage": "fulltext_retrieval",
+      "artifact_type": "supplement_full_text_retrieval",
+      "required_for_submission": true,
+      "path": "screening/full_text_retrieval_manifest.json",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "Zotero item, attachment, retrieval route, hash, locator, and unresolved-access state",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "",
+      "file_format": "",
+      "manuscript_location": "",
+      "content_contract": "",
+      "dependency_artifacts": []
+    },
+    {
+      "artifact_id": "data_extraction_supplement",
+      "stage": "data_extraction",
+      "artifact_type": "supplement_data_extraction",
+      "required_for_submission": true,
+      "path": "data/data_extraction_template.csv",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "Study-level and outcome-level data with report/page/table/figure coordinates",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "",
+      "file_format": "",
+      "manuscript_location": "",
+      "content_contract": "",
+      "dependency_artifacts": []
+    },
+    {
+      "artifact_id": "risk_of_bias_supplement",
+      "stage": "risk_of_bias",
+      "artifact_type": "supplement_risk_of_bias",
+      "required_for_submission": true,
+      "path": "reporting/supplementary/risk_of_bias_supplement.csv",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "Design-, outcome-, and result-level judgments with support",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "",
+      "file_format": "",
+      "manuscript_location": "",
+      "content_contract": "",
+      "dependency_artifacts": []
+    },
+    {
+      "artifact_id": "analysis_manifest",
+      "stage": "synthesis",
+      "artifact_type": "analysis_methods",
+      "required_for_submission": true,
+      "path": "verification/analysis_manifest.json",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "Estimands, effect measures, locked R runtime, diagnostics, deviations, and output hashes",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "",
+      "file_format": "",
+      "manuscript_location": "",
+      "content_contract": "",
+      "dependency_artifacts": []
+    },
+    {
+      "artifact_id": "synthesis_results_supplement",
+      "stage": "synthesis",
+      "artifact_type": "supplement_synthesis_results",
+      "required_for_submission": true,
+      "path": "reporting/supplementary/synthesis_results_supplement.csv",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "Study-level estimates, model outputs, heterogeneity, sensitivity, and NMA diagnostics",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "",
+      "file_format": "",
+      "manuscript_location": "",
+      "content_contract": "",
+      "dependency_artifacts": []
+    },
+    {
+      "artifact_id": "certainty_supplement",
+      "stage": "certainty",
+      "artifact_type": "supplement_certainty",
+      "required_for_submission": true,
+      "path": "reporting/supplementary/certainty_supplement.csv",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "GRADE or CINeMA judgments and outcome-level rationale",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "",
+      "file_format": "",
+      "manuscript_location": "",
+      "content_contract": "",
+      "dependency_artifacts": []
+    },
+    {
+      "artifact_id": "manuscript",
+      "stage": "reporting",
+      "artifact_type": "manuscript",
+      "required_for_submission": true,
+      "path": "reporting/manuscript.md",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "PRISMA 2020-complete manuscript aligned to approved results",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "",
+      "file_format": "",
+      "manuscript_location": "",
+      "content_contract": "",
+      "dependency_artifacts": []
+    },
+    {
+      "artifact_id": "cover_letter",
+      "stage": "reporting",
+      "artifact_type": "cover_letter",
+      "required_for_submission": true,
+      "path": "reporting/cover_letter.md",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "Journal-specific cover letter",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "",
+      "file_format": "",
+      "manuscript_location": "",
+      "content_contract": "",
+      "dependency_artifacts": []
+    },
+    {
+      "artifact_id": "reproducibility_readme",
+      "stage": "reporting",
+      "artifact_type": "reproducibility_readme",
+      "required_for_submission": true,
+      "path": "reporting/reproducibility_readme.md",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "Environment, commands, input/output inventory, and known limitations",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "",
+      "file_format": "",
+      "manuscript_location": "",
+      "content_contract": "",
+      "dependency_artifacts": []
+    }
+  ],
+  "release_checks": {
+    "all_required_artifacts_present": false,
+    "all_required_artifact_hashes_recorded": false,
+    "all_upstream_stage_gates_approved": false,
+    "search_strategy_peer_review_complete": false,
+    "prisma_2020_complete": false,
+    "prisma_s_complete": false,
+    "journal_author_instructions_checked": false,
+    "prisma_2020_abstract_complete": false
+  },
+  "archive": {
+    "archive_path": "reporting/submission_archive.zip",
+    "archive_sha256": "",
+    "created_at": "",
+    "contents_policy": "Include all approved submission artifacts and the filled submission checklist; exclude this live manifest to avoid self-referential archive hashing. The manifest records the archive SHA-256."
+  },
+  "package_metadata": {
+    "target_journal": "TARGET_JOURNAL",
+    "article_type": "systematic_review_meta_analysis_or_network_meta_analysis",
+    "protocol_version": "PROTOCOL_VERSION",
+    "prepared_at": "YYYY-MM-DDThh:mm:ssZ",
+    "journal_instructions_url": "JOURNAL_INSTRUCTIONS_URL",
+    "journal_instructions_checked_at": "YYYY-MM-DD",
+    "supplementary_file_naming_policy": "Use stable numbered labels (Supplement_1, Supplement_2...) and journal-approved extensions",
+    "checksum_algorithm": "SHA-256",
+    "provenance_policy": "Every released artifact has a project-relative path, source locator, completion state, two-reviewer signoff, and immutable SHA-256 hash",
+    "archive_contents_policy": "Include the completed submission checklist, all required supplementary files, editable source files, and reproducibility readme; exclude this live manifest from its own archive hash."
+  },
+  "search_strategy_contract": {
+    "standard": "PRISMA-S",
+    "source_of_truth_csv": "reporting/supplementary/search_strategy_supplement.csv",
+    "rendered_appendix": "reporting/supplementary/search_strategy_supplement.md",
+    "one_row_per": "executable database/interface line or other source method",
+    "mandatory_fields": [
+      "source_type",
+      "database",
+      "platform",
+      "search_date",
+      "timezone",
+      "exact_line_copied_verbatim",
+      "limits_and_filters",
+      "line_result_count",
+      "final_search_total",
+      "export_file",
+      "export_sha256",
+      "history_id_or_query_url",
+      "source_locator",
+      "peer_review_status",
+      "evidence_status"
+    ],
+    "release_reconciliation": "Reconcile each source total with PRISMA flow ledger and lock CSV/appendix hashes before release"
+  }
+}

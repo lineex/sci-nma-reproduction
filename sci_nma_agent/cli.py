@@ -233,7 +233,7 @@ def main():
             "editable_files/vector_svg", "editable_files/vector_pdf", "editable_files/office_docs",
             "verification", "verification/reviews", "original_materials", "agents",
             "raw_exports/pubmed", "raw_exports/embase", "raw_exports/wos", "raw_exports/cochrane",
-            "screening"
+            "screening", "reporting", "reporting/supplementary", "analysis", "code"
         ]
         for s in subdirs:
             os.makedirs(os.path.join(p_dir, s), exist_ok=True)
@@ -249,6 +249,19 @@ def main():
             "full_text_retrieval_manifest_template.json": "screening/full_text_retrieval_manifest.json",
             "full_text_screening_manifest_template.json": "screening/full_text_screening_manifest.json",
             "fact_status_manifest_template.json": "data/fact_status_manifest.json",
+            "search_strategy_supplement_template.csv": "reporting/supplementary/search_strategy_supplement.csv",
+            "submission_package_checklist_template.csv": "reporting/submission_package_checklist.csv",
+            "supplementary_materials_manifest_template.json": "reporting/supplementary_materials_manifest.json",
+            "reproducibility_readme_template.md": "reporting/reproducibility_readme.md",
+            "manuscript_template.md": "reporting/manuscript.md",
+            "cover_letter_template.md": "reporting/cover_letter.md",
+            "prisma_2020_checklist_template.csv": "reporting/supplementary/prisma_2020_checklist.csv",
+            "prisma_2020_abstract_checklist_template.csv": "reporting/supplementary/prisma_2020_abstract_checklist.csv",
+            "prisma_s_checklist_template.csv": "reporting/supplementary/prisma_s_checklist.csv",
+            "search_strategy_supplement_template.md": "reporting/supplementary/search_strategy_supplement.md",
+            "risk_of_bias_supplement_template.csv": "reporting/supplementary/risk_of_bias_supplement.csv",
+            "synthesis_results_supplement_template.csv": "reporting/supplementary/synthesis_results_supplement.csv",
+            "certainty_supplement_template.csv": "reporting/supplementary/certainty_supplement.csv",
         }
         for template_name, relative_target in template_targets.items():
             target = project_path / relative_target
@@ -264,6 +277,7 @@ def main():
         print("  - Raw export directories ready in: raw_exports/{pubmed, embase, wos, cochrane}")
         print("  - Screening directory ready in: screening/")
         print("  - New-review protocol, extraction form, and gated agent ledger initialized.")
+        print("  - Form-first reporting package initialized in: reporting/ and reporting/supplementary/")
         print("  - Runtime defaults: search CDP built-in browser -> Chrome DevTools; full text Zotero MCP -> local read-only; statistics R.")
 
     elif args.command == "zotero-fulltext":
