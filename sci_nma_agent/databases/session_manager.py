@@ -13,6 +13,7 @@ class InstitutionalSessionStatus:
     LOGIN_REQUIRED = "LOGIN_REQUIRED"
     SESSION_EXPIRED = "SESSION_EXPIRED"
     BLOCKED = "BLOCKED_OR_CAPTCHA"
+    SERVER_ERROR = "SERVER_ERROR"
     UNREACHABLE = "UNREACHABLE"
 
 
@@ -58,6 +59,26 @@ class BrowserSessionManager:
         if any(w in text_lower for w in ["captcha", "verify you are human", "checking your browser", "access denied", "unusual traffic"]):
             return InstitutionalSessionStatus.BLOCKED, f"[{database}] CAPTCHA or Anti-bot challenge detected."
 
+        # A completed challenge can leave the old page mounted while the
+        # application request fails.  Do this check before the normal
+        # authenticated-page heuristics; otherwise a WoS error page that still
+        # contains "Clarivate" and "Search" is incorrectly reported as OK.
+        if any(
+            token in text_lower
+            for token in (
+                "server.unexpectederror",
+                "server unexpected error",
+                "internal server error",
+                "unexpected server error",
+                "request failed",
+            )
+        ):
+            return (
+                InstitutionalSessionStatus.SERVER_ERROR,
+                f"[{database}] Search page returned a transient server error after verification; "
+                "refresh the search surface and rebuild the query before retrying.",
+            )
+
         if "embase" in db_lower:
             # Embase institutional indicators
             if "sign in to embase" in text_lower or "choose how to sign in" in text_lower:
@@ -87,6 +108,24 @@ class BrowserSessionManager:
         if "sign in" in text_lower or "log in" in text_lower:
             return InstitutionalSessionStatus.LOGIN_REQUIRED, f"{database} login required."
         return InstitutionalSessionStatus.OK, f"{database} search surface ready."
+
+    @staticmethod
+    def is_recoverable_status(status: str) -> bool:
+        """Return whether the browser page can be recovered without new credentials."""
+        return status in {
+            InstitutionalSessionStatus.SERVER_ERROR,
+            InstitutionalSessionStatus.SESSION_EXPIRED,
+        }
+
+    def prompt_user_for_recovery(self, database: str, target_url: str) -> None:
+        """Give a deterministic recovery sequence for a stale post-verification page."""
+        print(f"\n[!] SEARCH PAGE RECOVERY REQUIRED FOR {database.upper()}")
+        print(f"    Target URL: {target_url}")
+        print("    1. Keep the completed verification in the same browser profile.")
+        print("    2. Reload or return to the database search page; do not reuse the stale error view.")
+        print("    3. Re-enter the recorded query and run a small probe search first.")
+        print("    4. If the probe succeeds, rerun the full query and save the visible count/history ID.")
+        print("    5. If it repeats, switch to Search History or the protocol-recorded fallback route.")
 
     def prompt_user_for_login(self, database: str, target_url: str) -> None:
         """

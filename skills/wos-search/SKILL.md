@@ -68,6 +68,37 @@ If the browser session cannot be used or an API export is needed after the brows
 - remember that the page/export path is limited to 50 records per page
 - if exporting from Search History, select the history line first
 
+### Post-verification `Server.unexpectedError` recovery
+
+Clarivate may complete a bot/identity verification while leaving a stale
+Query Builder request mounted. The visible page can still contain “Web of
+Science”, “Clarivate”, and “Search”, so those words must not be treated as
+proof that the search request succeeded. When the page shows
+`Server.unexpectedError` (or an equivalent transient server error):
+
+1. Preserve the exact query, search date/time, browser route, and screenshot or
+   DOM evidence; classify the run as a transient access/request failure, not as
+   zero hits.
+2. Do not repeatedly submit the stale form. Reload or navigate back to the
+   authenticated WoS search surface in the same browser profile, then rebuild
+   the query from the recorded strategy.
+3. Run a small probe query first. Only after the probe returns a result/count
+   should the full query be submitted and its visible count/history identifier
+   recorded.
+4. If Query Builder still fails, use Search History for the recorded query, then
+   the protocol-approved Chrome DevTools route. A Clarivate Starter API export
+   may be used only as a recorded export/independent check; it must retain the
+   browser/session evidence.
+5. Retry transient API `429`/`5xx` responses with `Retry-After`/exponential
+   backoff. Authentication (`401`/`403`) and persistent server errors remain
+   explicit unresolved access states and must not be converted to an empty
+   search result.
+
+The query builder groups synonyms under one field tag, for example
+`TS=("term A" OR "term B")`, rather than emitting a long chain of repeated
+`TS=` tags. This avoids a known fragile post-verification parser path while
+preserving the same Boolean meaning.
+
 ## Practical Notes
 
 - For exact counts and reproducibility, retain the browser query, authenticated session evidence, visible count, and any API export/check together; an API response does not replace the required browser/session record.
