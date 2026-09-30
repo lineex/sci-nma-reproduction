@@ -66,8 +66,9 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
 
 2. **Browser Institutional Session Reuse (机构会话复用)**:
    - New reviews use the built-in CDP browser first and fall back to a Chrome DevTools session when the built-in browser is unavailable. Both routes reuse the authenticated university/hospital SSO or WebVPN session and preserve search-session evidence.
-   - The project default order is recorded in `review_protocol.json`: `cdp_builtin_browser -> chrome_devtools`. A direct Chrome remote-debugging session remains available as the fallback:
-     `chrome.exe --remote-debugging-port=9222`
+   - The project default order is recorded in `review_protocol.json`: `cdp_builtin_browser -> chrome_devtools`. The optional Chrome DevTools fallback must use a dedicated, non-default profile and a loopback-only endpoint:
+     `chrome.exe --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --user-data-dir="%LOCALAPPDATA%\sci-nma-agent\chrome-cdp-profile"`
+     (Chrome 136+ no longer honors remote debugging against the default profile.)
    - Active probe validates institutional access for Embase (Elsevier), Web of Science (Clarivate), and Cochrane (Wiley) before export, preventing export throttles.
 
 3. **Multi-Source Provenance-Retaining Deduplication (带溯源多标签去重)**:
@@ -264,7 +265,9 @@ The framework strictly enforces the **Anti-Shortcut Protocol**: Every single pha
    - 全量支持多批次分卷落盘文件扫描：`raw_exports/{pubmed, embase, wos, cochrane}`。
    - 内置 PubMed `.nbib`、Embase `.ris`（含 EMTREE 词与 PUI 编号）、WoS `.txt`/`.ciw`（含 WOS Accession Number）、Cochrane `.csv` 原生解析器。
 2. **浏览器机构用户登录状态复用（Session Reuse）**：
-   - 支持直连日常使用的 Chrome（启动参数 `--remote-debugging-port=9222`）或持久化用户 Profile。
+   - 内置 CDP 浏览器优先；如需 Chrome DevTools 备选，必须使用独立的非默认 Profile，并将调试端点限制在本机回环地址：
+     `chrome.exe --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --user-data-dir="%LOCALAPPDATA%\sci-nma-agent\chrome-cdp-profile"`。
+     不再直连日常 Chrome 配置目录；Chrome 136 及以后版本对默认配置目录不接受远程调试参数。
    - 自动探针检测 Embase/WoS/Cochrane 校园网 SSO/WebVPN 认证状态，过期自动挂起等待用户浏览器登录后无缝续导。
 3. **带溯源多标签去重（Provenance Deduplication）**：
    - 三级锚定去重（DOI 精确匹配 -> PMID 精确匹配 -> 规范化 Title + 出版年份比对）。

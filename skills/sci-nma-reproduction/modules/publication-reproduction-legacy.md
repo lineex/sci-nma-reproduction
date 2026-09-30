@@ -301,8 +301,11 @@ python -X utf8 .\redraw_latest_figures.py --figure1-data .\data\figure1_prisma_<
    - 检索原生命中数（$N_{\text{hits}}$）必须 $100\%$ 录入《检索流量守恒审计表》（Search Flow Conservation Audit Ledger）。
 2. **浏览器机构用户登录状态复用规范（Browser Institutional Session Reuse Protocol）**：
    - 针对 Embase、Web of Science、Cochrane Library 等商业学术数据库的机构权限访问，智能体通过两种方式复用真实机构会话：
-     * **方式 A（直连当前 Chrome）**：以 `--remote-debugging-port=9222` 启动日常 Chrome，智能体直接挂接（Attach）到当前已有会话；
-     * **方式 B（持久化 Profile）**：使用持久化用户数据目录，保留本地 Cookies、Session 与 LocalStorage。
+     * **方式 A（内置 CDP 浏览器）**：优先使用 Codex 内置浏览器，在同一已认证会话中完成检索并保存会话证据；
+     * **方式 B（Chrome DevTools 备选）**：仅连接本机回环地址，并使用独立的非默认 Profile：
+       `chrome.exe --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --user-data-dir="%LOCALAPPDATA%\sci-nma-agent\chrome-cdp-profile"`。
+       不直连日常 Chrome 配置目录，也不接受局域网/VPN/公网 CDP 地址。Chrome 136 及以后版本要求远程调试配合非默认 `--user-data-dir`。
+   - 连接前校验 CDP `/json/version`、浏览器标识和回环 WebSocket；安全校验失败时转入人工/内置浏览器路径，不把失败误记为零结果。
    - 执行检索或批量导出前，智能体自动运行 DOM 探针检测 `Access provided by [Institution]` 机构认证状态；若会话过期，安全挂起等待用户在浏览器中完成 SSO/VPN 认证后自动无缝续导，绝不索取明文账号密码。
 3. **分批落盘与多格式智能解析规范（Multi-Batch Landing & Parsing Protocol）**：
    - 针对商业库单次导出上限（Embase 500条/批，WoS 500~1000条/批），落盘至 `raw_exports/{database}/` 目录；

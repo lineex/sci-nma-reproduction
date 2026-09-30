@@ -11,7 +11,7 @@ protocol preflight.
 
 | Function | Primary | Fallback | Required behavior |
 |---|---|---|---|
-| Literature search | `cdp_builtin_browser` | `chrome_devtools` | Try the built-in CDP browser first, then the Chrome DevTools session. Reuse the authenticated session and retain the browser/session evidence used for each search. |
+| Literature search | `cdp_builtin_browser` | `chrome_devtools` | Try the built-in CDP browser first, then the Chrome DevTools session. Reuse the authenticated session and retain the browser/session evidence used for each search. The optional DevTools endpoint is local-only and must use a dedicated non-default Chrome profile. |
 | Zotero full text | `zotero_mcp` using [`cookjohn/zotero-mcp`](https://github.com/cookjohn/zotero-mcp) | `zotero_local_read_only` | Discover the active MCP schema at runtime, use only advertised read capabilities, and fall back to the local SQLite/JSON bridge when the MCP endpoint is unavailable. |
 | Statistical synthesis | `R` | An explicitly documented validated engine | New projects start with R. Pairwise work defaults to `meta`/`metafor`, frequentist NMA to `netmeta`, and the environment is locked with `renv.lock`. Python is orchestration and QA only. |
 
@@ -30,6 +30,21 @@ statistics: R (no silent Python production fallback)
    export or independent checking only when the approved protocol records that
    route; an API response does not silently replace the required browser
    session evidence.
+   - The built-in browser is the preferred route and does not require exposing a
+     user's normal Chrome profile through a debugging port.
+   - The optional Chrome DevTools fallback must bind to `127.0.0.1`,
+     `localhost`, or `::1` only. Network, VPN, and public IP endpoints are
+     rejected before connection.
+   - Use a dedicated non-default `--user-data-dir`. Chrome 136 and later
+     ignore remote-debugging switches for the default Chrome data directory;
+     isolating the profile also prevents the debugging session from exposing
+     the user's everyday cookies. See the
+     [Chrome security change](https://developer.chrome.com/blog/remote-debugging-port?hl=zh-cn)
+     for the upstream rationale.
+   - The CDP preflight validates `/json/version`, the browser identity, and the
+     advertised loopback WebSocket endpoint. An unsafe, incomplete, or
+     unreachable endpoint is recorded as a failed fallback and never treated as
+     a zero-result search.
 2. The Zotero MCP connection is the default full-text application path. Run
    `sci-nma-agent zotero-mcp-check` before collection export. The connected
    server's discovered tool schemas are authoritative. Preserve collection,

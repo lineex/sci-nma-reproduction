@@ -8,6 +8,7 @@ import os
 import json
 import asyncio
 import argparse
+import subprocess
 import uuid
 from importlib.resources import files
 from pathlib import Path
@@ -57,7 +58,7 @@ def main():
 
     # Command: session-check
     sess_parser = subparsers.add_parser("session-check", help="Check browser remote debugging connection and institutional access")
-    sess_parser.add_argument("--url", default="http://127.0.0.1:9222", help="Remote debugging CDP URL")
+    sess_parser.add_argument("--url", default="http://127.0.0.1:9222", help="Local loopback CDP URL")
 
     # Command: ingest
     ingest_parser = subparsers.add_parser("ingest", help="Ingest all raw batch export files, deduplicate, and build screening workbook")
@@ -486,16 +487,25 @@ def main():
 
     elif args.command == "session-check":
         mgr = BrowserSessionManager(args.url)
-        conn = mgr.is_browser_connected()
-        print(f"Browser CDP at {args.url}: {'CONNECTED' if conn else 'NOT CONNECTED'}")
-        if conn:
+        cdp_status = mgr.cdp_connection_status()
+        conn = bool(cdp_status.get("connected"))
+        print(f"Browser CDP at {args.url}: {'CONNECTED' if conn else cdp_status.get('status', 'NOT CONNECTED')}")
+        if not mgr.endpoint_valid:
+            print(f"  Endpoint rejected: {mgr.endpoint_error}")
+            print("  Use a local loopback endpoint only (127.0.0.1, localhost, or ::1).")
+        elif conn:
             pages = mgr.get_open_pages()
             print(f"Active browser tabs: {len(pages)}")
             for p in pages:
                 print(f"  - [{p.get('title', '')[:50]}] {p.get('url', '')}")
         else:
-            print("To enable session reuse with your institutional logins:")
-            print('  Launch Chrome with: chrome.exe --remote-debugging-port=9222')
+            if cdp_status.get("error"):
+                print(f"  Connection detail: {cdp_status['error']}")
+            print("To enable the optional Chrome DevTools fallback with your institutional logins:")
+            print("  Use a dedicated, non-default Chrome profile and keep the endpoint on loopback:")
+            chrome_command = BrowserSessionManager.recommended_chrome_command()
+            print("  " + subprocess.list2cmdline(chrome_command))
+            print("  Complete SSO/VPN in that same window, then rerun session-check.")
 
     elif args.command == "search":
         with open(args.pico, "r", encoding="utf-8") as f:

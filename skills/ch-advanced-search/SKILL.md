@@ -19,11 +19,11 @@ Open:
 https://www.cochranelibrary.com/advanced-search?q=&t=1
 ```
 
-Always include:
-
-```text
-initScript: "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-```
+Do not inject scripts that rewrite `navigator.webdriver`, user-agent
+properties, browser permissions, or other automation signals. Such stealth
+patches can trigger the site's security controls, invalidate the session, and
+make the search evidence non-reproducible. Use the browser's normal CDP
+transport and the same authenticated profile throughout the run.
 
 ## Primary Flow
 
@@ -78,6 +78,13 @@ Capture at least:
 - result URL
 
 ## Reliability Rules
+
+- Treat a CAPTCHA, identity check, or "verify you are human" page as a
+  user-action checkpoint. Keep the same browser tab/profile, pause the
+  executor, and resume only after the user completes the challenge.
+- Never bypass, suppress, or spoof a challenge. If the page returns an error
+  after verification, record it as a transient access failure and rebuild the
+  query from the saved strategy rather than reporting zero results.
 
 - For exact counts, trust the tab counts from the advanced-search result surface, not a simplified hand-built GET URL.
 - Validate that the tab counts remain stable after switching `selectedType`.

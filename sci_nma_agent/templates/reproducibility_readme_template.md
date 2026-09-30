@@ -10,7 +10,9 @@
 
 ## Runtime defaults
 
-- Search: built-in CDP browser first; Chrome DevTools fallback.
+- Search: built-in CDP browser first; Chrome DevTools fallback. The fallback
+  is loopback-only and uses a dedicated non-default Chrome profile; its
+  `/json/version` and WebSocket endpoint are preflight-validated.
 - Full text: Zotero MCP (`cookjohn/zotero-mcp`) first; read-only local Zotero bridge fallback.
 - Statistics: locked R environment, with exact versions recorded in `verification/analysis_manifest.json` and `renv.lock`.
 

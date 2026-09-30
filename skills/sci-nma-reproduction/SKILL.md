@@ -50,6 +50,14 @@ retrieve full text through Zotero MCP first and the read-only local Zotero
 bridge second. Record the selected route and fallback reason in the stage
 artifacts.
 
+For the Chrome DevTools fallback, use only a loopback CDP endpoint
+(`127.0.0.1`, `localhost`, or `::1`) and a dedicated non-default Chrome
+`--user-data-dir`. Never attach the debugging port to the user's everyday
+profile or a network/public address. The session preflight must validate
+`/json/version` and the advertised loopback WebSocket before any search
+automation; classify an unsafe or incomplete endpoint as a failed fallback,
+not as an empty search.
+
 Use a **form-first, journal-shaped package** for every new review:
 
 - Complete the line-by-line search supplement at

@@ -30,6 +30,23 @@ Capture at least:
 - DOI
 - citation counts
 
+### CDP safety preflight
+
+For the Chrome DevTools fallback, attach only to a loopback endpoint
+(`http://127.0.0.1:9222`, `localhost`, or `::1`) backed by a dedicated,
+non-default Chrome profile. A safe Windows launch example is:
+
+```text
+chrome.exe --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --user-data-dir="%LOCALAPPDATA%\sci-nma-agent\chrome-cdp-profile"
+```
+
+Run the project `session-check` preflight before attaching. It validates
+`/json/version`, the browser identity, and the advertised loopback WebSocket.
+Reject network/public endpoints, embedded credentials, incomplete DevTools
+responses, and the everyday Chrome profile. If this preflight fails, remain on
+the built-in browser or record the manual/fallback route; do not treat the
+failed CDP connection as an empty WoS result.
+
 ## Query Construction
 
 Use native WoS syntax:
