@@ -11,14 +11,16 @@ effect estimates, model, or figure contents as new-review data.
    record matching chapter-level Handbook update/access dates and tutorial provenance, then freeze the question,
    eligibility, outcomes, synthesis decisions, registration status, and
    amendment process before screening.
-2. Execute database-specific searches and peer review; preserve exact
-   strategies, dates, counts, exports, and provenance.
+2. Execute database-specific searches and peer review through the built-in CDP
+   browser first, with Chrome DevTools as the fallback. Preserve exact
+   strategies, dates, counts, browser/session route, exports, and provenance.
 3. Deduplicate while retaining source records and study/report links.
 4. Screen titles/abstracts and full texts with separate reviewer decisions,
    then document adjudication and full-text exclusion reasons.
 5. Have the user create the project collection, import report items, and use
    Zotero's own attachment retrieval in the desktop application. Use the
-   configured Zotero MCP connection only to read the existing collection and
+   configured Zotero MCP connection as the primary application route to read
+   the existing collection and
    extract cached text; the current CLI is read-only and does not import items
    or trigger downloads. Reconcile item identity, attachment choice, retrieval
    state, hashes, page locators, and extraction errors before eligibility or

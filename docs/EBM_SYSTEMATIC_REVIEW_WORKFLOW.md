@@ -35,6 +35,12 @@ The Handbook and tutorial guide evidence-synthesis methods. Zotero collections,
 agent roles, local manifests, and the approval ledger are implementation
 choices; they are not prescribed by Cochrane.
 
+The required new-project runtime defaults are defined in
+[Environment and Application Defaults](ENVIRONMENT_AND_APPLICATION_DEFAULTS.md):
+the built-in CDP browser is the primary search surface with Chrome DevTools as
+fallback, Zotero MCP is the primary full-text connector with the read-only
+local bridge as fallback, and R is the default production statistics engine.
+
 ## Gated Sequence
 
 | Gate | Work product | Method checkpoints | Release rule |

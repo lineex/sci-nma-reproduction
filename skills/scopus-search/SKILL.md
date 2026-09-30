@@ -1,12 +1,15 @@
 ---
 name: scopus-search
-description: Search Scopus documents by keyword through Chrome DevTools MCP and extract structured result metadata including EID, title, authors, source, year, DOI, cited-by count, and result links.
+description: Search Scopus documents by keyword through the built-in CDP browser with Chrome DevTools as fallback and extract structured result metadata including EID, title, authors, source, year, DOI, cited-by count, and result links.
 argument-hint: [search keywords]
 ---
 
 # Scopus Basic Document Search
 
 Use this skill when the user wants a keyword search in Scopus.
+
+Use the built-in CDP browser first. If it is unavailable, use the Chrome
+DevTools session and record the fallback route in the search artifact.
 
 ## Step 1: Ensure Access
 

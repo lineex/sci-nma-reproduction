@@ -43,6 +43,13 @@ project default, not a software requirement imposed by Cochrane. Reproduction
 or calibration work follows the published analysis software for fidelity and
 does not inherit the new-review default automatically.
 
+Use the required runtime defaults in
+[`docs/ENVIRONMENT_AND_APPLICATION_DEFAULTS.md`](../../docs/ENVIRONMENT_AND_APPLICATION_DEFAULTS.md):
+search through the built-in CDP browser first and Chrome DevTools second;
+retrieve full text through Zotero MCP first and the read-only local Zotero
+bridge second. Record the selected route and fallback reason in the stage
+artifacts.
+
 Do not load all role cards up front. For each new-review stage, assemble only
 the generic executor or reviewer card, the relevant stage-method row, the
 approved protocol, and that stage's declared inputs.

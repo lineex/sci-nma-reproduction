@@ -5,7 +5,10 @@ description: Reliable advanced PubMed search via NCBI E-utilities with field tag
 
 # PubMed Advanced Search
 
-Use this skill when the query must be explicit and reproducible. Build the exact PubMed syntax first, then execute through E-utilities instead of relying on page DOM behavior.
+Use the built-in CDP browser as the primary search transport and Chrome
+DevTools as the fallback. Build the exact PubMed syntax first; use E-utilities
+for protocol-recorded export or independent checking after the browser route,
+not as a silent replacement for the required browser/session evidence.
 
 ## Common Field Tags
 
@@ -37,7 +40,7 @@ Use this skill when the query must be explicit and reproducible. Build the exact
 
 ## Reliability Rules
 
-- Prefer E-utilities over browser-only search for exact counts and exportable identifiers.
+- Keep the built-in CDP browser search as the primary run and Chrome DevTools as fallback. Use E-utilities only as a protocol-recorded export or independent check after the browser route; retain the browser/session evidence with the API response.
 - Always show the exact query and PubMed `querytranslation` in the final response.
 - Keep conservative rate limiting even when an API key is available.
 - Retry on `429` and transient server/network failures with backoff.

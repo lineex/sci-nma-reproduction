@@ -5,6 +5,10 @@ description: Reliable Cochrane Library advanced search via the real advanced-sea
 
 # Cochrane Advanced Search
 
+Use the built-in CDP browser as the primary search transport and Chrome
+DevTools as the fallback. Preserve the selected browser/session route with
+the query and result counts.
+
 Do not treat Cochrane advanced search as a simple query-string page. The stable path is the real advanced-search form plus the results portlet.
 
 ## Preferred Entry

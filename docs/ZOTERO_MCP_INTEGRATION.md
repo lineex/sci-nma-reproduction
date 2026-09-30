@@ -1,6 +1,6 @@
 # Zotero MCP Integration
 
-The preferred connector is [`cookjohn/zotero-mcp`](https://github.com/cookjohn/zotero-mcp), a Zotero plugin with an integrated Streamable HTTP MCP server. Its README documents collection browsing, item lookup, content extraction, full-text database access, and identifier-based import with optional attachment retrieval. Tool names and schemas can change; the executor must inspect the active MCP tool definitions rather than assume a particular version.
+The required new-project default connector is [`cookjohn/zotero-mcp`](https://github.com/cookjohn/zotero-mcp), a Zotero plugin with an integrated Streamable HTTP MCP server. Its README documents collection browsing, item lookup, content extraction, full-text database access, and identifier-based import with optional attachment retrieval. Tool names and schemas can change; the executor must inspect the active MCP tool definitions rather than assume a particular version. The read-only local Zotero adapter is the defined fallback, not a competing default.
 
 ## Connection
 

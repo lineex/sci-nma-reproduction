@@ -337,6 +337,25 @@ def test_synthesis_templates_default_primary_engine_to_r():
         assert template["software"]["primary_engine"]["name"] == "R"
 
 
+def test_protocol_requires_browser_zotero_and_r_execution_defaults():
+    protocol = json.loads(_valid_protocol_text())
+    assert validate_review_protocol(protocol) == []
+
+    protocol["execution_defaults"]["search"]["primary_browser"] = "chrome_devtools"
+    errors = validate_review_protocol(protocol)
+    assert any("execution_defaults.search.primary_browser" in error for error in errors)
+
+    protocol = json.loads(_valid_protocol_text())
+    protocol["execution_defaults"]["full_text"]["primary_connector"] = "zotero_local_read_only"
+    errors = validate_review_protocol(protocol)
+    assert any("execution_defaults.full_text.primary_connector" in error for error in errors)
+
+    protocol = json.loads(_valid_protocol_text())
+    protocol["execution_defaults"]["statistics"]["primary_engine"] = "Python"
+    errors = validate_review_protocol(protocol)
+    assert any("execution_defaults.statistics.primary_engine" in error for error in errors)
+
+
 def test_analysis_manifest_requires_methods_software_and_hashed_outputs(tmp_path):
     output = tmp_path / "results" / "pooled_effects.json"
     output.parent.mkdir(parents=True)

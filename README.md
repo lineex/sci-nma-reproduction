@@ -59,7 +59,8 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
    - Native parsers for PubMed `.nbib`/`.medline`, Embase/Cochrane `.ris`, Web of Science `.txt`/`.ciw`, and Cochrane `.csv`.
 
 2. **Browser Institutional Session Reuse (机构会话复用)**:
-   - Directly attaches to existing running Chrome instances with university/hospital SSO or WebVPN via remote debugging:
+   - New reviews use the built-in CDP browser first and fall back to a Chrome DevTools session when the built-in browser is unavailable. Both routes reuse the authenticated university/hospital SSO or WebVPN session and preserve search-session evidence.
+   - The project default order is recorded in `review_protocol.json`: `cdp_builtin_browser -> chrome_devtools`. A direct Chrome remote-debugging session remains available as the fallback:
      `chrome.exe --remote-debugging-port=9222`
    - Active probe validates institutional access for Embase (Elsevier), Web of Science (Clarivate), and Cochrane (Wiley) before export, preventing export throttles.
 
@@ -224,6 +225,7 @@ The framework strictly enforces the **Anti-Shortcut Protocol**: Every single pha
 
 - 按 Cochrane Handbook 与项目方案依次通过 11 个门：方案、检索、去重关联、题录初筛、全文获取、全文资格、数据提取、偏倚风险、综合、证据确定性、报告。每门由执行 agent 提交可审查工件，两个独立 reviewer 均通过后才能进入下一门；上游文件哈希变化会阻止旧审批继续生效。
 - Zotero 优先使用 [`cookjohn/zotero-mcp`](https://github.com/cookjohn/zotero-mcp)：读取指定 collection、核对条目和附件、提取全文。安装 MCP 可选依赖并配置 Zotero MCP endpoint 后，可使用直连适配器；无 MCP endpoint 时可使用只读 Zotero 本地数据库/JSON 导出适配器。
+- 新项目的环境与应用默认值集中记录在 [`docs/ENVIRONMENT_AND_APPLICATION_DEFAULTS.md`](docs/ENVIRONMENT_AND_APPLICATION_DEFAULTS.md)：检索为内置 CDP 浏览器优先、Chrome DevTools 备选；全文为 Zotero MCP 优先、本地只读桥接备选；统计为 R。
 - 全文获取不等于事实缺失。不可获取、附件待确认、全文待审、报告内未报告、所有关联来源均未报告、全文审阅后仍无法判断分别记录；未获取报告进入逐条人工获取队列，用户确认正确的 Zotero 条目/附件后，回到同一阶段续跑。相关状态由阶段账本校验，来源关联图谱通过 SHA-256 固定。
 - 新项目沿用既有图表合同；新流程不会自行改变图表外观。已发表研究的复现及校准只在用户明确提出复现任务时加载。
 

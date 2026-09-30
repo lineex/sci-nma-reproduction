@@ -9,6 +9,29 @@
     "created_date": "",
     "last_updated": ""
   },
+  "execution_defaults": {
+    "search": {
+      "primary_browser": "cdp_builtin_browser",
+      "fallback_browser": "chrome_devtools",
+      "fallback_order": ["cdp_builtin_browser", "chrome_devtools"],
+      "selection_policy": "try_primary_then_fallback",
+      "session_policy": "reuse_authenticated_session"
+    },
+    "full_text": {
+      "primary_connector": "zotero_mcp",
+      "primary_server": "cookjohn/zotero-mcp",
+      "fallback_connector": "zotero_local_read_only",
+      "fallback_order": ["zotero_mcp", "zotero_local_read_only"],
+      "selection_policy": "try_primary_then_fallback"
+    },
+    "statistics": {
+      "primary_engine": "R",
+      "pairwise_packages": ["meta", "metafor"],
+      "frequentist_nma_package": "netmeta",
+      "runtime_lock": "renv.lock",
+      "python_role": "orchestration_and_qa_only"
+    }
+  },
   "question": {
     "framework": "PICO",
     "population": "",

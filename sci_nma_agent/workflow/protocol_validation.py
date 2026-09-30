@@ -150,6 +150,65 @@ def _need_two_distinct(data: Dict[str, Any], path: str, errors: List[str]) -> No
         errors.append(f"{path} must name two distinct, non-placeholder reviewers")
 
 
+def _validate_execution_defaults(protocol: Dict[str, Any], errors: List[str]) -> None:
+    """Keep the required browser, Zotero, and R runtime defaults auditable."""
+    defaults = protocol.get("execution_defaults")
+    if not isinstance(defaults, dict):
+        errors.append("execution_defaults must declare the project browser, Zotero, and statistics defaults")
+        return
+
+    search = defaults.get("search")
+    if not isinstance(search, dict):
+        errors.append("execution_defaults.search must be an object")
+    else:
+        expected_search = {
+            "primary_browser": "cdp_builtin_browser",
+            "fallback_browser": "chrome_devtools",
+            "fallback_order": ["cdp_builtin_browser", "chrome_devtools"],
+            "selection_policy": "try_primary_then_fallback",
+            "session_policy": "reuse_authenticated_session",
+        }
+        for field, expected in expected_search.items():
+            if search.get(field) != expected:
+                errors.append(
+                    f"execution_defaults.search.{field} must default to {expected!r}"
+                )
+
+    full_text = defaults.get("full_text")
+    if not isinstance(full_text, dict):
+        errors.append("execution_defaults.full_text must be an object")
+    else:
+        expected_full_text = {
+            "primary_connector": "zotero_mcp",
+            "primary_server": "cookjohn/zotero-mcp",
+            "fallback_connector": "zotero_local_read_only",
+            "fallback_order": ["zotero_mcp", "zotero_local_read_only"],
+            "selection_policy": "try_primary_then_fallback",
+        }
+        for field, expected in expected_full_text.items():
+            if full_text.get(field) != expected:
+                errors.append(
+                    f"execution_defaults.full_text.{field} must default to {expected!r}"
+                )
+
+    statistics = defaults.get("statistics")
+    if not isinstance(statistics, dict):
+        errors.append("execution_defaults.statistics must be an object")
+    else:
+        expected_statistics = {
+            "primary_engine": "R",
+            "pairwise_packages": ["meta", "metafor"],
+            "frequentist_nma_package": "netmeta",
+            "runtime_lock": "renv.lock",
+            "python_role": "orchestration_and_qa_only",
+        }
+        for field, expected in expected_statistics.items():
+            if statistics.get(field) != expected:
+                errors.append(
+                    f"execution_defaults.statistics.{field} must default to {expected!r}"
+                )
+
+
 def validate_full_text_fact_state(
     retrieval_status: str,
     review_status: str,
@@ -1015,6 +1074,8 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
     if not isinstance(protocol, dict) or protocol.get("schema_version") != 2:
         return ["schema_version must be 2 and the protocol root must be a JSON object"]
+
+    _validate_execution_defaults(protocol, errors)
 
     method_sources = protocol.get("methods_sources")
     chapters = method_sources.get("cochrane_chapters_used") if isinstance(method_sources, dict) else None

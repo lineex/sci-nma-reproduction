@@ -264,7 +264,7 @@ def main():
         print("  - Raw export directories ready in: raw_exports/{pubmed, embase, wos, cochrane}")
         print("  - Screening directory ready in: screening/")
         print("  - New-review protocol, extraction form, and gated agent ledger initialized.")
-        print("  - Statistical default: R; complete exact R/package versions and renv.lock before synthesis.")
+        print("  - Runtime defaults: search CDP built-in browser -> Chrome DevTools; full text Zotero MCP -> local read-only; statistics R.")
 
     elif args.command == "zotero-fulltext":
         try:

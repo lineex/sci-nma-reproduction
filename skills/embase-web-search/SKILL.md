@@ -5,7 +5,10 @@ description: Reliable authenticated Embase search and bulk retrieval through the
 
 # Embase Web Search
 
-Use this skill after `embase-session` confirms that the browser session is ready.
+Use the built-in CDP browser as the primary search transport and Chrome
+DevTools as the fallback. Use this skill after `embase-session` confirms that
+the selected browser session is ready; REST pagination is an optional,
+protocol-recorded export/check route.
 
 ## Query Style
 
@@ -16,9 +19,9 @@ Build native Embase syntax, for example:
 
 Keep the exact final query for reporting.
 
-## Preferred Retrieval Path
+## Browser-First Retrieval Path
 
-Do not depend on manual export for full retrieval. Prefer the embase.com web REST sequence behind Search History.
+Run and record the search in the built-in CDP browser first, using Chrome DevTools only when the built-in session is unavailable. After the browser Search History run is preserved, use the embase.com web REST sequence behind Search History as an optional, protocol-recorded export/check route rather than a replacement for browser evidence.
 
 ## Workflow
 

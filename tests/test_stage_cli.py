@@ -55,7 +55,9 @@ def test_init_copies_gated_manifest_and_methods_source_templates(tmp_path, monke
     monkeypatch.setattr(sys, "argv", ["sci-nma-agent", "init", str(tmp_path)])
 
     cli.main()
-    assert "Statistical default: R" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "Runtime defaults: search CDP built-in browser -> Chrome DevTools" in output
+    assert "full text Zotero MCP -> local read-only; statistics R" in output
 
     expected = [
         "verification/analysis_manifest.json",
