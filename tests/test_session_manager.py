@@ -64,6 +64,16 @@ def test_recommended_chrome_command_uses_isolated_loopback_profile():
     assert all("disable-blink-features" not in part for part in command)
 
 
+def test_cdp_runtime_policy_does_not_spoof_automation_signals():
+    policy = BrowserSessionManager.cdp_runtime_policy()
+
+    assert policy["headed_headless_mode_specific_overrides"] is False
+    assert policy["navigator_webdriver_override"] is False
+    assert policy["automation_controlled_override"] is False
+    assert policy["stealth_injection"] is False
+    assert policy["verification_handling"] == "user_action_checkpoint_same_profile"
+
+
 def test_cdp_status_rejects_unsafe_endpoint_without_network_call(monkeypatch):
     calls = []
 
@@ -117,6 +127,7 @@ def test_cdp_status_accepts_local_devtools_payload(monkeypatch):
     assert status["status"] == "CONNECTED"
     assert status["connected"] is True
     assert status["browser"] == "Chrome/136.0.0.0"
+    assert status["automation_policy"]["navigator_webdriver_override"] is False
 
 
 def test_cdp_status_rejects_remote_advertised_websocket(monkeypatch):

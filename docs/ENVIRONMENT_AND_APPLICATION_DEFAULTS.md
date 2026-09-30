@@ -45,6 +45,15 @@ statistics: R (no silent Python production fallback)
      advertised loopback WebSocket endpoint. An unsafe, incomplete, or
      unreachable endpoint is recorded as a failed fallback and never treated as
      a zero-result search.
+   - **Automation-visibility status (updated 2026-09-30):** the current
+     fallback is a normal headed Chrome launch; there is no headless-only
+     `AutomationControlled` branch. The project deliberately does not rewrite
+     `navigator.webdriver`, add `--disable-blink-features=AutomationControlled`,
+     inject stealth scripts, or suppress site verification. A verification
+     page is paused as a user-action checkpoint and resumed in the same
+     authenticated profile. This fixes the stale-profile/unsafe-endpoint and
+     post-verification recovery paths; it does not claim that a site cannot
+     observe CDP automation.
    - Search formulation follows a sensitivity-first PICOS policy for
      intervention reviews: P and I are required; C and O are optional and
      omitted by default. Enabling C or O requires stable indexing/reporting,

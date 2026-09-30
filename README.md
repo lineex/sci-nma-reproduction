@@ -69,6 +69,7 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
    - The project default order is recorded in `review_protocol.json`: `cdp_builtin_browser -> chrome_devtools`. The optional Chrome DevTools fallback must use a dedicated, non-default profile and a loopback-only endpoint:
      `chrome.exe --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --user-data-dir="%LOCALAPPDATA%\sci-nma-agent\chrome-cdp-profile"`
      (Chrome 136+ no longer honors remote debugging against the default profile.)
+   - CDP status is explicit: the current headed fallback does not patch `navigator.webdriver`, does not add `--disable-blink-features=AutomationControlled`, and does not inject stealth code. Verification is handled by pausing for the user in the same authenticated profile, not by bypassing the challenge.
    - Active probe validates institutional access for Embase (Elsevier), Web of Science (Clarivate), and Cochrane (Wiley) before export, preventing export throttles.
 
 3. **Multi-Source Provenance-Retaining Deduplication (带溯源多标签去重)**:

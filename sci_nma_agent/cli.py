@@ -495,6 +495,11 @@ def main():
         cdp_status = mgr.cdp_connection_status()
         conn = bool(cdp_status.get("connected"))
         print(f"Browser CDP at {args.url}: {'CONNECTED' if conn else cdp_status.get('status', 'NOT CONNECTED')}")
+        print(
+            "Automation policy: headed normal session; "
+            "no webdriver/AutomationControlled override; "
+            "verification resumes after user action in the same profile."
+        )
         if not mgr.endpoint_valid:
             print(f"  Endpoint rejected: {mgr.endpoint_error}")
             print("  Use a local loopback endpoint only (127.0.0.1, localhost, or ::1).")

@@ -136,6 +136,25 @@ class BrowserSessionManager:
             f"--user-data-dir={profile_dir}",
         ]
 
+    @staticmethod
+    def cdp_runtime_policy() -> Dict[str, Any]:
+        """Return the auditable browser-automation policy.
+
+        The project uses ordinary headed Chrome/CDP session reuse. It does
+        not rewrite ``navigator.webdriver`` or inject an
+        ``AutomationControlled`` override. This keeps the authenticated
+        session and search evidence reproducible and makes a verification
+        page a user-action checkpoint rather than a bypass target.
+        """
+        return {
+            "headed_headless_mode_specific_overrides": False,
+            "navigator_webdriver_override": False,
+            "automation_controlled_override": False,
+            "stealth_injection": False,
+            "verification_handling": "user_action_checkpoint_same_profile",
+            "endpoint_policy": "loopback_only_dedicated_profile",
+        }
+
     def cdp_connection_status(self) -> Dict[str, Any]:
         """Return a structured, auditable status for the CDP endpoint."""
         if not self.endpoint_valid:
@@ -144,6 +163,7 @@ class BrowserSessionManager:
                 "connected": False,
                 "url": self.cdp_url,
                 "error": self.endpoint_error,
+                "automation_policy": self.cdp_runtime_policy(),
             }
             return dict(self.last_cdp_status)
 
@@ -159,6 +179,7 @@ class BrowserSessionManager:
                 "connected": False,
                 "url": self.cdp_url,
                 "error": str(exc),
+                "automation_policy": self.cdp_runtime_policy(),
             }
             return dict(self.last_cdp_status)
         except Exception as exc:  # pragma: no cover - defensive for custom clients
@@ -167,6 +188,7 @@ class BrowserSessionManager:
                 "connected": False,
                 "url": self.cdp_url,
                 "error": str(exc),
+                "automation_policy": self.cdp_runtime_policy(),
             }
             return dict(self.last_cdp_status)
 
@@ -177,6 +199,7 @@ class BrowserSessionManager:
                 "url": self.cdp_url,
                 "http_status": resp.status_code,
                 "error": f"CDP /json/version returned HTTP {resp.status_code}.",
+                "automation_policy": self.cdp_runtime_policy(),
             }
             return dict(self.last_cdp_status)
 
@@ -188,6 +211,7 @@ class BrowserSessionManager:
                 "connected": False,
                 "url": self.cdp_url,
                 "error": f"CDP /json/version returned invalid JSON: {exc}",
+                "automation_policy": self.cdp_runtime_policy(),
             }
             return dict(self.last_cdp_status)
 
@@ -198,6 +222,7 @@ class BrowserSessionManager:
                 "connected": False,
                 "url": self.cdp_url,
                 "error": error,
+                "automation_policy": self.cdp_runtime_policy(),
             }
             return dict(self.last_cdp_status)
 
@@ -224,6 +249,7 @@ class BrowserSessionManager:
                 "connected": False,
                 "url": self.cdp_url,
                 "error": error,
+                "automation_policy": self.cdp_runtime_policy(),
             }
             return dict(self.last_cdp_status)
 
@@ -234,6 +260,7 @@ class BrowserSessionManager:
             "browser": browser,
             "webSocketDebuggerUrl": websocket_url,
             "protocolVersion": payload.get("Protocol-Version"),
+            "automation_policy": self.cdp_runtime_policy(),
         }
         return dict(self.last_cdp_status)
 
