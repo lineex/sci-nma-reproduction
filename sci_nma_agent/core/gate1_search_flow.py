@@ -27,7 +27,9 @@ class Gate1SearchFlow:
         - fulltext_excluded: int
         - fulltext_exclusion_reasons: Dict[str, int]
         - studies_included: int
-        - reports_included: int (optional)
+        - reports_included: int (optional; report-level flow count)
+        - included_study_ids: list[str] (optional; unique study-level count)
+        - fulltext_pending: int (optional; reports assessed but not yet classified)
         """
         errors = []
         metrics = {}
@@ -96,19 +98,55 @@ class Gate1SearchFlow:
                     f"fulltext_excluded ({fulltext_excluded})."
                 )
 
-        # 6. Included Studies
-        expected_included = assessed - fulltext_excluded
-        included = flow_data.get("studies_included", expected_included)
-        if included != expected_included:
+        # Reports and studies are different PRISMA units.  Keep the flow
+        # conservation equation at report level, then derive the study count
+        # from unique study IDs when the new workflow supplies them.
+        pending = flow_data.get("fulltext_pending", 0)
+        if not isinstance(pending, int) or pending < 0:
+            errors.append("fulltext_pending must be a non-negative integer")
+            pending = 0
+        expected_reports_included = assessed - fulltext_excluded - pending
+        # ``reports_included`` historically also represented the descriptive
+        # count of reports belonging to included studies.  Use the explicit
+        # flow field for conservation; legacy fixtures remain readable.
+        flow_reports_included = flow_data.get(
+            "reports_included_in_flow",
+            flow_data.get("reports_included", expected_reports_included)
+            if "included_study_ids" in flow_data
+            else expected_reports_included,
+        )
+        reports_included = flow_reports_included
+        if reports_included != expected_reports_included:
             errors.append(
-                f"Included studies mismatch: assessed ({assessed}) - fulltext_excluded ({fulltext_excluded}) = "
-                f"{expected_included}, but studies_included is {included}."
+                f"Included reports mismatch: assessed ({assessed}) - fulltext_excluded ({fulltext_excluded}) "
+                f"- fulltext_pending ({pending}) = {expected_reports_included}, "
+                f"but reports_included is {reports_included}."
             )
+        metrics["reports_included"] = reports_included
+        metrics["fulltext_pending"] = pending
+
+        included_ids = flow_data.get("included_study_ids")
+        if isinstance(included_ids, list):
+            normalized_ids = [str(value).strip() for value in included_ids if str(value).strip()]
+            if len(set(normalized_ids)) != len(normalized_ids):
+                errors.append("included_study_ids must be unique")
+            included = len(set(normalized_ids))
+        else:
+            # Legacy callers supplied a study count but not a report-to-study
+            # map. Preserve that interface while no longer using it to close
+            # the report-level flow equation.
+            included = flow_data.get("studies_included", reports_included)
+            if not isinstance(included, int) or included < 0:
+                errors.append("studies_included must be a non-negative integer")
+                included = 0
         metrics["studies_included"] = included
 
         # 7. Global Flow Conservation Loss (L ≡ 0)
-        # Flow loss L: total_identified - duplicates - screen_excluded - not_retrieved - fulltext_excluded - included
-        flow_loss = total_identified - (duplicates + screen_excluded + not_retrieved + fulltext_excluded + included)
+        # Flow loss is defined on reports, not unique studies.
+        flow_loss = total_identified - (
+            duplicates + screen_excluded + not_retrieved + fulltext_excluded
+            + pending + reports_included
+        )
         metrics["flow_loss"] = flow_loss
         if flow_loss != 0:
             errors.append(f"Global PRISMA flow loss violation: L = {flow_loss} (Expected L ≡ 0).")

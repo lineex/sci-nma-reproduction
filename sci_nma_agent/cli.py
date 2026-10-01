@@ -10,6 +10,7 @@ import asyncio
 import argparse
 import subprocess
 import uuid
+import hashlib
 from importlib.resources import files
 from pathlib import Path
 from .core.audit_runner import AuditRunner
@@ -27,6 +28,8 @@ from .databases.zotero_mcp import (
     ZoteroMCPError,
     ZoteroMCPReadClient,
     ZoteroMCPWriteClient,
+    _canonical_sha256,
+    _jsonable,
     _records_from_response,
 )
 from .workflow.stage_ledger import AgentStageLedger, StageLedgerError, STAGE_IDS
@@ -43,10 +46,96 @@ from .workflow.fulltext_acquisition import (
     compare_identity,
     load_json,
     record_identity,
+    retrieval_manifest_base_hash,
     update_queue_with_download,
     write_discrepancy_table,
     write_json,
 )
+
+
+def _write_evidence_snapshot(evidence):
+    """Persist a JSON-safe MCP response and its canonical hash."""
+    raw = _jsonable(evidence.raw_response)
+    return {
+        "tool_name": evidence.tool_name,
+        "arguments": dict(evidence.arguments),
+        "called_at": evidence.called_at,
+        "raw_response": raw,
+        "raw_response_sha256": _canonical_sha256(raw),
+    }
+
+
+def _write_response_keys(raw_response):
+    """Extract direct item/attachment keys from normalized MCP records."""
+    keys = []
+    for record in _records_from_response(raw_response):
+        if not isinstance(record, dict):
+            continue
+        for field in ("key", "itemKey", "item_key", "id", "itemId", "attachmentKey", "attachment_key", "attachmentId"):
+            value = record.get(field)
+            if isinstance(value, str) and value.strip():
+                keys.append(value.strip())
+                break
+    return list(dict.fromkeys(keys))
+
+
+def _sync_acquisition_artifacts(queue_path: Path, queue: dict) -> dict:
+    """Write the queue and bind its hash/status into the formal manifest."""
+    queue_path = queue_path.resolve()
+    manifest_raw = queue.get("source_manifest_path")
+    if not manifest_raw:
+        write_json(queue_path, queue)
+        return queue
+    manifest_path = Path(manifest_raw).expanduser().resolve()
+    if not manifest_path.is_file():
+        raise ValueError(f"source retrieval manifest is missing: {manifest_path}")
+    manifest = load_json(manifest_path)
+    source_hash = retrieval_manifest_base_hash(manifest)
+    declared_hash = queue.get("source_manifest_sha256")
+    if declared_hash and declared_hash != source_hash:
+        raise ValueError("acquisition queue is stale relative to the retrieval manifest")
+    project_root = None
+    for candidate in (manifest_path.parent, *manifest_path.parents):
+        if (candidate / "screening").is_dir() and (candidate / "verification").is_dir():
+            project_root = candidate
+            break
+    if project_root is None:
+        project_root = manifest_path.parent.parent
+    try:
+        queue_relative = queue_path.relative_to(project_root).as_posix()
+    except ValueError as exc:
+        raise ValueError("acquisition queue must remain inside the review project") from exc
+
+    by_pair = {
+        (str(row.get("study_id", "")), str(row.get("report_id", ""))): row
+        for row in queue.get("records", [])
+        if isinstance(row, dict)
+    }
+    for record in manifest.get("records", []):
+        if not isinstance(record, dict):
+            continue
+        pair = (str(record.get("study_id", "")), str(record.get("report_id", "")))
+        row = by_pair.get(pair)
+        if row is None:
+            continue
+        record["acquisition_queue_status"] = {
+            "doi": row.get("doi"),
+            "doi_resolution": row.get("doi_resolution"),
+            "download": row.get("download"),
+            "institutional_access": row.get("institutional_access"),
+            "zotero": row.get("zotero"),
+            "discrepancy_status": row.get("discrepancy_status"),
+        }
+    # The per-record status mirror is part of the substantive retrieval
+    # evidence, so recompute the queue's source hash after applying it.  This
+    # keeps subsequent operations idempotent instead of leaving the queue
+    # bound to the pre-update manifest.
+    queue["source_manifest_sha256"] = retrieval_manifest_base_hash(manifest)
+    write_json(queue_path, queue)
+    manifest["acquisition_queue_path"] = queue_relative
+    manifest["acquisition_queue_sha256"] = hashlib.sha256(queue_path.read_bytes()).hexdigest()
+    write_json(manifest_path, manifest)
+    return queue
 
 
 def main():
@@ -502,9 +591,37 @@ def main():
                 manifest_path = Path(args.manifest).expanduser().resolve()
                 manifest = load_json(manifest_path)
                 queue = build_acquisition_queue(manifest, source_path=str(manifest_path))
-                queue["source_manifest_sha256"] = __import__("hashlib").sha256(manifest_path.read_bytes()).hexdigest()
-                write_json(Path(args.output).expanduser().resolve(), queue)
-                print(json.dumps({"queue_path": str(Path(args.output).expanduser().resolve()), "record_count": len(queue["records"])}, ensure_ascii=False, indent=2))
+                queue_path = Path(args.output).expanduser().resolve()
+                project_root = None
+                for candidate in (manifest_path.parent, *manifest_path.parents):
+                    if (candidate / "screening").is_dir() and (candidate / "verification").is_dir():
+                        project_root = candidate
+                        break
+                if project_root is None:
+                    parts = manifest_path.parts
+                    if "screening" in parts:
+                        project_root = Path(*parts[:parts.index("screening")])
+                    else:
+                        project_root = manifest_path.parent.parent
+                try:
+                    queue_relative = queue_path.relative_to(project_root).as_posix()
+                except ValueError as exc:
+                    raise ValueError("acquisition queue output must be inside the review project") from exc
+                queue["source_manifest_sha256"] = retrieval_manifest_base_hash(manifest)
+                write_json(queue_path, queue)
+                queue_hash = __import__("hashlib").sha256(queue_path.read_bytes()).hexdigest()
+                # Bind the queue into the formal retrieval manifest.  The
+                # queue source hash deliberately excludes these two binding
+                # fields, avoiding a circular hash dependency.
+                manifest["acquisition_queue_path"] = queue_relative
+                manifest["acquisition_queue_sha256"] = queue_hash
+                write_json(manifest_path, manifest)
+                print(json.dumps({
+                    "queue_path": str(queue_path),
+                    "queue_sha256": queue_hash,
+                    "manifest_path": str(manifest_path),
+                    "record_count": len(queue["records"]),
+                }, ensure_ascii=False, indent=2))
             elif args.acquisition_action == "download":
                 queue_path = Path(args.queue).expanduser().resolve()
                 queue = load_json(queue_path)
@@ -514,7 +631,8 @@ def main():
                 doi = row.get("doi")
                 if not doi:
                     raise ValueError("this record has no resolved DOI; resolve or manually supply an identifier before download")
-                prior = next((candidate for candidate in queue.get("records", []) if isinstance(candidate, dict) and candidate is not row and candidate.get("doi") == doi and candidate.get("download", {}).get("status") in {"succeeded", "duplicate"} and candidate.get("download", {}).get("pdf_sha256")), None)
+                doi_key = str(doi).casefold()
+                prior = next((candidate for candidate in queue.get("records", []) if isinstance(candidate, dict) and candidate is not row and str(candidate.get("doi", "")).casefold() == doi_key and candidate.get("download", {}).get("status") in {"succeeded", "duplicate", "cache_hit"} and candidate.get("download", {}).get("pdf_sha256")), None)
                 if prior:
                     from .workflow.fulltext_acquisition import ScanSciResult
                     result = ScanSciResult(
@@ -530,9 +648,9 @@ def main():
                     }
                     result = ScanSciPDFAdapter(args.executable).download(doi, Path(args.output_dir).expanduser().resolve(), known_hashes=known_hashes)
                 update_queue_with_download(queue, (args.study_id, args.report_id), result)
-                write_json(queue_path, queue)
+                _sync_acquisition_artifacts(queue_path, queue)
                 print(json.dumps({"queue_path": str(queue_path), "result": result.__dict__}, ensure_ascii=False, indent=2))
-                if result.status not in {"succeeded", "duplicate"}:
+                if result.status not in {"succeeded", "duplicate", "cache_hit"}:
                     sys.exit(2 if result.status == "carsi_user_action_required" else 1)
             elif args.acquisition_action == "zotero-push":
                 if not args.confirm_write:
@@ -559,28 +677,59 @@ def main():
                                 return found
                     return None
                 async def push():
+                    nonlocal write_evidence
                     async with ZoteroMCPWriteClient.connect(args.url) as client:
                         import_evidence = await client.import_by_identifier(row["doi"], collection=args.collection)
-                        item_key = _item_key_from_response(import_evidence.raw_response)
-                        calls = [{"tool_name": import_evidence.tool_name, "arguments": dict(import_evidence.arguments), "called_at": import_evidence.called_at}]
+                        write_evidence.append(_write_evidence_snapshot(import_evidence))
+                        item_keys = _write_response_keys(import_evidence.raw_response)
+                        item_key = item_keys[0] if item_keys else _item_key_from_response(import_evidence.raw_response)
+                        calls = list(write_evidence)
                         if args.pdf:
                             if not item_key:
                                 raise ValueError("Zotero import did not return an item key needed for PDF attachment")
                             pdf_path = Path(args.pdf).expanduser().resolve()
                             if not pdf_path.is_file() or pdf_path.stat().st_size <= 0:
                                 raise ValueError(f"PDF path does not exist or is empty: {pdf_path}")
+                            queued_pdf = row.get("download", {}).get("pdf_path")
+                            queued_hash = row.get("download", {}).get("pdf_sha256")
+                            if queued_pdf and pdf_path != Path(queued_pdf).expanduser().resolve():
+                                raise ValueError("PDF path does not match the queued downloaded PDF")
+                            if queued_hash and hashlib.sha256(pdf_path.read_bytes()).hexdigest() != str(queued_hash).casefold():
+                                raise ValueError("PDF hash does not match the queued downloaded PDF")
                             attachment = await client.attach_pdf(item_key, str(pdf_path))
-                            calls.append({"tool_name": attachment.tool_name, "arguments": dict(attachment.arguments), "called_at": attachment.called_at})
+                            write_evidence.append(_write_evidence_snapshot(attachment))
+                            calls = list(write_evidence)
+                            attachment_keys = _write_response_keys(attachment.raw_response)
+                            attachment_key = attachment_keys[0] if attachment_keys else None
+                        else:
+                            attachment_key = None
                         if args.refresh_metadata:
                             if not item_key:
                                 raise ValueError("Zotero import did not return an item key needed for metadata refresh")
                             refreshed = await client.refresh_metadata(item_key)
-                            calls.append({"tool_name": refreshed.tool_name, "arguments": dict(refreshed.arguments), "called_at": refreshed.called_at})
-                        return {"item_key": item_key, "write_calls": calls}
-                result = asyncio.run(push())
-                row.setdefault("zotero", {}).update({"status": "metadata_refresh_requested" if args.refresh_metadata else "import_requested", "item_key": result.get("item_key"), "write_calls": result["write_calls"]})
+                            write_evidence.append(_write_evidence_snapshot(refreshed))
+                            calls = list(write_evidence)
+                        return {"item_key": item_key, "attachment_key": attachment_key, "write_calls": calls}
+                write_evidence = []
+                try:
+                    result = asyncio.run(push())
+                except Exception as exc:
+                    row.setdefault("zotero", {}).update({
+                        "status": "write_failed",
+                        "write_calls": list(write_evidence),
+                        "last_error": str(exc),
+                    })
+                    row.setdefault("route_attempts", []).append({
+                        "route": "zotero_mcp_write",
+                        "status": "write_failed",
+                        "error": str(exc),
+                        "attempted_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+                    })
+                    _sync_acquisition_artifacts(queue_path, queue)
+                    raise
+                row.setdefault("zotero", {}).update({"status": "metadata_refresh_requested" if args.refresh_metadata else "import_requested", "item_key": result.get("item_key"), "attachment_key": result.get("attachment_key"), "write_calls": result["write_calls"]})
                 row.setdefault("route_attempts", []).append({"route": "zotero_mcp_write", "status": row["zotero"]["status"], "attempted_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()})
-                write_json(queue_path, queue)
+                _sync_acquisition_artifacts(queue_path, queue)
                 print(json.dumps({"queue_path": str(queue_path), **result}, ensure_ascii=False, indent=2))
             else:
                 queue = load_json(Path(args.queue).expanduser().resolve())
@@ -592,18 +741,33 @@ def main():
                     async with ZoteroMCPReadClient.connect(args.url) as client:
                         evidence = await client.read_item_details(args.item_key)
                         records = _records_from_response(evidence.raw_response)
-                        item = next((candidate for candidate in records if isinstance(candidate, dict) and str(candidate.get("key", candidate.get("itemKey", ""))) == args.item_key), records[0] if records else {})
+                        exact = [
+                            candidate for candidate in records
+                            if isinstance(candidate, dict)
+                            and str(candidate.get("key", candidate.get("itemKey", candidate.get("item_key", "")))) == args.item_key
+                        ]
+                        if len(exact) != 1:
+                            raise ValueError(
+                                f"Zotero readback did not return exactly one item with key {args.item_key!r}"
+                            )
+                        item = exact[0]
                         observed = record_identity(item if isinstance(item, dict) else {})
                         return evidence, observed
                 evidence, observed = asyncio.run(verify())
                 discrepancies = compare_identity(expected, observed)
+                evidence_snapshot = _write_evidence_snapshot(evidence)
                 for discrepancy in discrepancies:
-                    discrepancy.update({"study_id": args.study_id, "report_id": args.report_id, "item_key": args.item_key, "evidence_locator": evidence.tool_name})
+                    discrepancy.update({
+                        "study_id": args.study_id,
+                        "report_id": args.report_id,
+                        "item_key": args.item_key,
+                        "evidence_locator": f"{evidence.tool_name}:{evidence_snapshot['raw_response_sha256']}",
+                    })
                 digest = write_discrepancy_table(discrepancies, Path(args.output).expanduser().resolve())
-                row.setdefault("zotero", {}).update({"status": "verified" if not discrepancies else "metadata_mismatch", "item_key": args.item_key, "metadata_readback": observed, "verification_status": "passed" if not discrepancies else "failed", "verification_tool": evidence.tool_name})
+                row.setdefault("zotero", {}).update({"status": "verified" if not discrepancies else "metadata_mismatch", "item_key": args.item_key, "metadata_readback": observed, "metadata_readback_evidence": evidence_snapshot, "verification_status": "passed" if not discrepancies else "failed", "verification_tool": evidence.tool_name})
                 row["discrepancy_status"] = "none" if not discrepancies else "open"
                 row["discrepancies"] = discrepancies
-                write_json(Path(args.queue).expanduser().resolve(), queue)
+                _sync_acquisition_artifacts(Path(args.queue).expanduser().resolve(), queue)
                 print(json.dumps({"verification_status": row["zotero"]["verification_status"], "discrepancy_count": len(discrepancies), "discrepancy_table": str(Path(args.output).expanduser().resolve()), "discrepancy_table_sha256": digest}, ensure_ascii=False, indent=2))
                 if discrepancies:
                     sys.exit(2)

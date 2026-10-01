@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import copy
 from datetime import date
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Dict, List, Optional, Union
@@ -52,6 +53,222 @@ _REVIEWED_FACT_STATES = {
     "not_applicable",
 }
 _SHA256 = re.compile(r"^[a-fA-F0-9]{64}$")
+
+# A report may be excluded at full-text only for an eligibility failure that is
+# observable in the report.  A missing/unusable outcome is a data-availability
+# state, not a study-level eligibility criterion; retain it for author contact
+# or awaiting-classification instead of silently dropping the study.
+_OUTCOME_UNAVAILABLE_EXCLUSION_REASONS = {
+    "data unavailable",
+    "insufficient outcome data",
+    "no usable outcome",
+    "no usable outcome data",
+    "outcome unavailable",
+    "outcome data unavailable",
+    "outcome not reported",
+    "outcome not available",
+    "result unavailable",
+    "results unavailable",
+    "no outcome data",
+}
+
+
+def _normalized_reason(value: Any) -> str:
+    """Normalize a free-text exclusion reason for policy comparisons."""
+    return re.sub(r"[^a-z0-9]+", " ", str(value or "").strip().casefold()).strip()
+
+
+def _is_outcome_unavailable_exclusion_reason(value: Any) -> bool:
+    """Return whether *value* is solely a missing/unusable-result reason."""
+    return _normalized_reason(value) in _OUTCOME_UNAVAILABLE_EXCLUSION_REASONS
+
+
+def _validate_search_rerun_policy(protocol: Dict[str, Any], errors: List[str]) -> None:
+    """Require a protocol-level, twelve-month pre-submission search recheck rule."""
+    search = protocol.get("search")
+    if not isinstance(search, dict):
+        errors.append("search must be an object")
+        return
+    policy = search.get("rerun_policy")
+    if not isinstance(policy, dict):
+        errors.append("search.rerun_policy must declare the pre-submission search recheck policy")
+        return
+    if policy.get("required_before_submission") is not True:
+        errors.append("search.rerun_policy.required_before_submission must be true")
+    months = policy.get("max_months_since_last_search")
+    if months != 12:
+        errors.append("search.rerun_policy.max_months_since_last_search must be 12")
+    if not _is_safe_project_relative_path(policy.get("rerun_record_path")):
+        errors.append("search.rerun_policy.rerun_record_path must be a safe project-relative path")
+    for field in ("rerun_trigger", "execution_rule"):
+        if not _is_filled(policy.get(field)):
+            errors.append(f"search.rerun_policy.{field} must be completed")
+    # The protocol may be prepared before any database is run, so the actual
+    # date is optional here.  Once supplied it must be an ISO calendar date.
+    for field in ("last_search_date", "rerun_due_date"):
+        value = policy.get(field)
+        if _is_filled(value):
+            try:
+                date.fromisoformat(str(value))
+            except ValueError:
+                errors.append(f"search.rerun_policy.{field} must be an ISO date (YYYY-MM-DD)")
+
+
+def _validate_author_contact_policy(protocol: Dict[str, Any], errors: List[str]) -> None:
+    """Require a minimal auditable author-contact route and event log contract."""
+    data_collection = protocol.get("data_collection")
+    if not isinstance(data_collection, dict):
+        errors.append("data_collection must be an object")
+        return
+    policy = data_collection.get("author_contact")
+    if not isinstance(policy, dict):
+        errors.append("data_collection.author_contact must declare a structured contact policy")
+        return
+    if policy.get("required") is not True:
+        errors.append("data_collection.author_contact.required must be true")
+    routes = policy.get("routes")
+    if not isinstance(routes, list) or len(routes) < 1 or any(not _is_filled(item) for item in routes):
+        errors.append("data_collection.author_contact.routes must contain at least one completed route")
+    for field in ("max_attempts", "interval_days", "response_deadline_days"):
+        value = policy.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+            errors.append(f"data_collection.author_contact.{field} must be a positive integer")
+    if not _is_safe_project_relative_path(policy.get("log_path")):
+        errors.append("data_collection.author_contact.log_path must be a safe project-relative path")
+    statuses = policy.get("status_vocabulary")
+    if (
+        not isinstance(statuses, list)
+        or not statuses
+        or any(not _is_filled(item) for item in statuses)
+    ):
+        errors.append("data_collection.author_contact.status_vocabulary must be a completed list")
+
+
+def _validate_awaiting_classification_policy(protocol: Dict[str, Any], errors: List[str]) -> None:
+    """Require an explicit, release-blocking awaiting-classification ledger."""
+    full_text = protocol.get("full_text")
+    if not isinstance(full_text, dict):
+        errors.append("full_text must be an object")
+        return
+    policy = full_text.get("awaiting_classification_policy")
+    if not isinstance(policy, dict):
+        errors.append(
+            "full_text.awaiting_classification_policy must declare the unresolved-report ledger"
+        )
+        return
+    if policy.get("release_blocking") is not True:
+        errors.append("full_text.awaiting_classification_policy.release_blocking must be true")
+    if not _is_safe_project_relative_path(policy.get("log_path")):
+        errors.append(
+            "full_text.awaiting_classification_policy.log_path must be a safe project-relative path"
+        )
+    required_fields = policy.get("required_fields")
+    if (
+        not isinstance(required_fields, list)
+        or not required_fields
+        or any(not _is_filled(item) for item in required_fields)
+    ):
+        errors.append(
+            "full_text.awaiting_classification_policy.required_fields must list the auditable unresolved-state fields"
+        )
+    else:
+        required = {str(item) for item in required_fields}
+        expected = {"reason", "next_action", "owner", "created_at", "next_review_at", "source_locator"}
+        if not expected.issubset(required):
+            errors.append(
+                "full_text.awaiting_classification_policy.required_fields must include "
+                "reason, next_action, owner, created_at, next_review_at, and source_locator"
+            )
+
+
+def retrieval_manifest_base_hash(manifest: Dict[str, Any]) -> str:
+    """Hash retrieval evidence while excluding its queue binding fields.
+
+    The acquisition queue records the hash of the retrieval manifest *before*
+    the queue path/hash are attached.  Excluding these two fields avoids a
+    circular dependency while still detecting edits to all substantive
+    retrieval records and policy metadata.
+    """
+    payload = copy.deepcopy(manifest)
+    if isinstance(payload, dict):
+        payload.pop("acquisition_queue_path", None)
+        payload.pop("acquisition_queue_sha256", None)
+        # CLI mirrors mutable acquisition progress into each retrieval record.
+        # That mirror is intentionally excluded from the queue's source hash,
+        # matching fulltext_acquisition.retrieval_manifest_base_hash().
+        for record in payload.get("records", []):
+            if isinstance(record, dict):
+                record.pop("acquisition_queue_status", None)
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def validate_retrieval_acquisition_queue_binding(
+    manifest: Dict[str, Any],
+    project_dir: Union[str, Path],
+) -> List[str]:
+    """Validate the optional DOI/PDF acquisition queue bound to a retrieval manifest.
+
+    A queue is optional for legacy/manual retrieval manifests.  Once a manifest
+    declares ``acquisition_queue_path`` or ``acquisition_queue_sha256``, both
+    fields are required and the queue must be a project-local JSON object whose
+    source-manifest base hash and study/report scope match the manifest.
+    """
+    errors: List[str] = []
+    if not isinstance(manifest, dict):
+        return ["full-text retrieval manifest must be an object"]
+    path_value = manifest.get("acquisition_queue_path")
+    hash_value = manifest.get("acquisition_queue_sha256")
+    if path_value in (None, "") and hash_value in (None, ""):
+        return errors
+    if not _is_filled(path_value):
+        errors.append("acquisition_queue_path is required when acquisition_queue_sha256 is declared")
+        return errors
+    if not _SHA256.fullmatch(str(hash_value or "")):
+        errors.append("acquisition_queue_sha256 must be a SHA-256 hash")
+    if not _is_safe_project_relative_path(path_value):
+        errors.append("acquisition_queue_path must be a project-relative path")
+        return errors
+    project = Path(project_dir).expanduser().resolve()
+    queue_path = (project / Path(*PurePosixPath(str(path_value)).parts)).resolve()
+    try:
+        queue_path.relative_to(project)
+    except ValueError:
+        errors.append("acquisition_queue_path escaped the review project")
+        return errors
+    if not queue_path.is_file():
+        errors.append(f"acquisition queue file is missing: {path_value}")
+        return errors
+    actual_hash = _sha256(queue_path)
+    if actual_hash != hash_value:
+        errors.append("acquisition_queue_sha256 does not match the declared queue file")
+    try:
+        queue = json.loads(queue_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return errors + [f"Unable to read acquisition queue JSON: {exc}"]
+    if not isinstance(queue, dict) or queue.get("schema_version") != 1:
+        errors.append("acquisition queue schema_version must be 1")
+        return errors
+    expected_base_hash = retrieval_manifest_base_hash(manifest)
+    if queue.get("source_manifest_sha256") != expected_base_hash:
+        errors.append("acquisition queue source_manifest_sha256 does not match the retrieval manifest base hash")
+    queue_records = queue.get("records")
+    if not isinstance(queue_records, list):
+        errors.append("acquisition queue records must be a list")
+        return errors
+    manifest_pairs = {
+        (str(record.get("study_id", "")).strip(), str(record.get("report_id", "")).strip())
+        for record in manifest.get("records", [])
+        if isinstance(record, dict)
+    }
+    queue_pairs = {
+        (str(record.get("study_id", "")).strip(), str(record.get("report_id", "")).strip())
+        for record in queue_records
+        if isinstance(record, dict)
+    }
+    if queue_pairs != manifest_pairs:
+        errors.append("acquisition queue must cover exactly the retrieval manifest study/report scope")
+    return errors
 
 
 def _sha256(path: Path) -> str:
@@ -351,9 +568,51 @@ def validate_submission_package_manifest(
             "prisma_2020_abstract_complete",
             "prisma_s_complete",
             "journal_author_instructions_checked",
+            "search_recheck_within_12_months",
         ):
             if release_checks.get(field) is not True:
                 errors.append(f"submission package manifest release_checks.{field} must be true for release")
+
+    # A release must carry a dated, hash-bound search recheck record.  The
+    # protocol declaration is checked separately; this check verifies that
+    # the final package actually performed the re-run within twelve months of
+    # the intended submission date.
+    search_recheck = manifest.get("search_recheck")
+    if not isinstance(search_recheck, dict):
+        errors.append("submission package manifest search_recheck must be an object")
+    else:
+        for field in ("status", "last_search_date", "submission_date", "record_path", "record_sha256"):
+            if not _is_filled(search_recheck.get(field)):
+                errors.append(f"submission package manifest search_recheck.{field} must be completed")
+        if search_recheck.get("status") != "complete":
+            errors.append("submission package manifest search_recheck.status must be complete for release")
+        if not _is_safe_project_relative_path(search_recheck.get("record_path")):
+            errors.append("submission package manifest search_recheck.record_path must be project-relative")
+        if not _SHA256.fullmatch(str(search_recheck.get("record_sha256", ""))):
+            errors.append("submission package manifest search_recheck.record_sha256 must be a SHA-256 hash")
+        try:
+            last_search = date.fromisoformat(str(search_recheck.get("last_search_date", "")))
+            submission = date.fromisoformat(str(search_recheck.get("submission_date", "")))
+            elapsed_months = (submission.year - last_search.year) * 12 + (submission.month - last_search.month)
+            if submission < last_search:
+                errors.append("submission package search_recheck.submission_date cannot precede last_search_date")
+            elif elapsed_months > 12 or (
+                elapsed_months == 12 and submission.day > last_search.day
+            ):
+                errors.append(
+                    "submission package search_recheck must be completed within 12 months before submission"
+                )
+        except ValueError:
+            errors.append("submission package search_recheck dates must use YYYY-MM-DD")
+        if project_dir is not None and _is_safe_project_relative_path(search_recheck.get("record_path")):
+            record_path = Path(project_dir).expanduser().resolve() / Path(
+                *PurePosixPath(str(search_recheck["record_path"])).parts
+            )
+            if not record_path.is_file():
+                errors.append("submission package search_recheck.record_path does not exist in the review project")
+            elif _SHA256.fullmatch(str(search_recheck.get("record_sha256", ""))):
+                if _sha256(record_path) != str(search_recheck["record_sha256"]).lower():
+                    errors.append("submission package search_recheck.record_sha256 does not match its record")
 
     archive = manifest.get("archive")
     if not isinstance(archive, dict):
@@ -1070,6 +1329,7 @@ def validate_full_text_retrieval_manifest_file(
             return ["full-text retrieval manifest title/abstract screening hash does not match the approved screening scope"]
     errors = validate_full_text_retrieval_manifest(manifest, study_report_map, screening_scope)
     if project_dir is not None and isinstance(manifest, dict):
+        errors.extend(validate_retrieval_acquisition_queue_binding(manifest, project_dir))
         project = Path(project_dir).expanduser().resolve()
         for index, record in enumerate(manifest.get("records", [])):
             if not isinstance(record, dict) or record.get("retrieval_status") != "manual_confirmed":
@@ -1168,6 +1428,35 @@ def validate_full_text_screening_manifest(
                     errors.append(f"{prefix}.exclusion_reason is required for a full-text exclusion")
                 if not _is_filled(record.get("source_locator")):
                     errors.append(f"{prefix}.source_locator is required for a full-text exclusion")
+                if _is_outcome_unavailable_exclusion_reason(record.get("exclusion_reason")):
+                    errors.append(
+                        f"{prefix}.exclusion_reason cannot be used to exclude an otherwise eligible report "
+                        "solely because an outcome or result is unavailable; use awaiting_classification, "
+                        "author_contact, or an explicit fact-status record"
+                    )
+                # When present, retain the explicit eligibility criterion.  The
+                # legacy reason field remains accepted for existing manifests;
+                # missing-result reasons are nevertheless rejected above.
+            elif eligibility == "awaiting_classification":
+                if review_status != "not_started" and review_status != "pending_independent_review":
+                    errors.append(
+                        f"{prefix}.full_text_review_status must remain not_started or pending_independent_review "
+                        "while awaiting classification"
+                    )
+                awaiting = record.get("awaiting_classification")
+                if isinstance(awaiting, dict):
+                    for field in (
+                        "reason",
+                        "next_action",
+                        "owner",
+                        "created_at",
+                        "next_review_at",
+                        "source_locator",
+                    ):
+                        if not _is_filled(awaiting.get(field)):
+                            errors.append(
+                                f"{prefix}.awaiting_classification.{field} must be completed"
+                            )
         else:
             if eligibility != "awaiting_classification":
                 errors.append(f"{prefix} cannot receive an eligibility decision before retrieval is confirmed")
@@ -1175,6 +1464,20 @@ def validate_full_text_screening_manifest(
                 errors.append(f"{prefix}.full_text_review_status must remain not_started until retrieval is confirmed")
             if decisions:
                 errors.append(f"{prefix} cannot contain reviewer decisions before retrieval is confirmed")
+            awaiting = record.get("awaiting_classification")
+            if isinstance(awaiting, dict):
+                for field in (
+                    "reason",
+                    "next_action",
+                    "owner",
+                    "created_at",
+                    "next_review_at",
+                    "source_locator",
+                ):
+                    if not _is_filled(awaiting.get(field)):
+                        errors.append(
+                            f"{prefix}.awaiting_classification.{field} must be completed"
+                        )
 
     if set(screening_by_pair) != set(retrieval_by_pair):
         errors.append("full-text screening manifest must account for every report in the retrieval manifest")
@@ -1262,6 +1565,9 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
 
     _validate_execution_defaults(protocol, errors)
     _validate_reporting_package_protocol(protocol, errors)
+    _validate_search_rerun_policy(protocol, errors)
+    _validate_author_contact_policy(protocol, errors)
+    _validate_awaiting_classification_policy(protocol, errors)
 
     method_sources = protocol.get("methods_sources")
     chapters = method_sources.get("cochrane_chapters_used") if isinstance(method_sources, dict) else None

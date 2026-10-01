@@ -206,8 +206,10 @@ class ScreeningLedger:
         reports_assessed = 0
         fulltext_excluded = 0
         fulltext_reasons: Dict[str, int] = {r: 0 for r in cls.STANDARD_FULLTEXT_EXCLUDE_REASONS}
-        studies_included = 0
+        included_study_ids = set()
+        fulltext_pending = 0
         included_studies: List[Dict[str, Any]] = []
+        decision_errors: List[str] = []
 
         for row in range(2, ws.max_row + 1):
             master_id = ws.cell(row=row, column=1).value
@@ -230,13 +232,13 @@ class ScreeningLedger:
                 tiab_excluded += 1
                 if tiab_reason:
                     tiab_reasons[tiab_reason] = tiab_reasons.get(tiab_reason, 0) + 1
-            else:
+            elif tiab_dec == "INCLUDE":
                 # Included in TiAb -> Full-Text Sought
                 reports_sought += 1
                 # Stage 2: Retrieval & Full-Text Assessment
                 if ret_val == "NO":
                     reports_not_retrieved += 1
-                else:
+                elif ret_val == "YES":
                     reports_assessed += 1
                     if ft_dec == "EXCLUDE":
                         fulltext_excluded += 1
@@ -247,13 +249,27 @@ class ScreeningLedger:
                                 break
                         fulltext_reasons[matched_reason] += 1
                     elif ft_dec == "INCLUDE":
-                        studies_included += 1
+                        resolved_study_id = study_id or f"Study_{master_id}"
+                        included_study_ids.add(resolved_study_id)
                         included_studies.append({
                             "master_id": master_id,
-                            "study_id": study_id or f"Study_{master_id}",
+                            "study_id": resolved_study_id,
                             "title": title,
                             "doi": doi
                         })
+                    else:
+                        fulltext_pending += 1
+                        decision_errors.append(
+                            f"{master_id}: retrieved report requires Full-Text Decision INCLUDE or EXCLUDE"
+                        )
+                else:
+                    decision_errors.append(
+                        f"{master_id}: Full-Text Retrieved must be YES or NO after full-text is sought"
+                    )
+            else:
+                decision_errors.append(
+                    f"{master_id}: TiAb Decision must be INCLUDE or EXCLUDE"
+                )
 
         # Load existing flow to preserve total_identified and duplicates_removed
         with open(prisma_flow_path, "r", encoding="utf-8") as f:
@@ -267,7 +283,10 @@ class ScreeningLedger:
         flow_data["reports_assessed"] = reports_assessed
         flow_data["fulltext_excluded"] = fulltext_excluded
         flow_data["fulltext_exclusion_reasons"] = fulltext_reasons
-        flow_data["studies_included"] = studies_included
+        flow_data["studies_included"] = len(included_study_ids)
+        flow_data["included_study_ids"] = sorted(included_study_ids)
+        flow_data["reports_included"] = len(included_studies)
+        flow_data["fulltext_pending"] = fulltext_pending
 
         # Validate with Gate 1
         passed, errors, metrics = Gate1SearchFlow.validate_prisma_flow(flow_data)
@@ -276,6 +295,9 @@ class ScreeningLedger:
         with open(prisma_flow_path, "w", encoding="utf-8") as f:
             json.dump(flow_data, f, indent=2)
 
+        errors = decision_errors + errors
+        if decision_errors:
+            passed = False
         return passed, {
             "metrics": metrics,
             "included_studies_count": len(included_studies),

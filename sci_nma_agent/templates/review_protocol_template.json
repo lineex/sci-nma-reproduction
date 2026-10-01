@@ -95,6 +95,15 @@
     "citation_searching": [],
     "restrictions_and_rationale": "",
     "search_peer_review_plan": "",
+    "rerun_policy": {
+      "required_before_submission": true,
+      "max_months_since_last_search": 12,
+      "last_search_date": "",
+      "rerun_due_date": "",
+      "rerun_record_path": "search/recheck_log.json",
+      "rerun_trigger": "Repeat every declared database search before submission when the previous search is more than 12 months old.",
+      "execution_rule": "Record exact-as-run strategies, counts, exports, deduplication, screening, and downstream updates in the rerun log."
+    },
     "search_concept_policy": {
       "required_blocks": [
         "P",
@@ -203,7 +212,19 @@
       "year"
     ],
     "discrepancy_table_path": "verification/zotero_metadata_discrepancies.csv",
-    "deduplication_policy": "DOI first, then PDF SHA-256; never download an already-hashed DOI twice."
+    "deduplication_policy": "DOI first, then PDF SHA-256; never download an already-hashed DOI twice.",
+    "awaiting_classification_policy": {
+      "release_blocking": true,
+      "log_path": "screening/awaiting_classification.csv",
+      "required_fields": [
+        "reason",
+        "next_action",
+        "owner",
+        "created_at",
+        "next_review_at",
+        "source_locator"
+      ]
+    }
   },
   "data_collection": {
     "form_path": "data/data_extraction_template.csv",
@@ -215,6 +236,25 @@
     "independent_verification_rule": "",
     "pilot_and_training_plan": "",
     "author_contact_policy": "",
+    "author_contact": {
+      "required": true,
+      "routes": [
+        "Corresponding-author email",
+        "Institutional contact or repository request"
+      ],
+      "max_attempts": 2,
+      "interval_days": 14,
+      "response_deadline_days": 28,
+      "log_path": "verification/author_contact_log.csv",
+      "status_vocabulary": [
+        "not_started",
+        "sent",
+        "partial_response",
+        "complete_response",
+        "no_response",
+        "closed"
+      ]
+    },
     "conversion_and_assumption_log": "verification/data_decisions.jsonl"
   },
   "risk_of_bias": {

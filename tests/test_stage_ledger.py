@@ -1057,6 +1057,54 @@ def test_fulltext_exclusions_require_protocol_reason_and_report_locator():
     assert validate_full_text_screening_manifest(fulltext_manifest, study_report_map, retrieval_manifest) == []
 
 
+def test_fulltext_exclusion_rejects_missing_outcome_as_eligibility_reason():
+    study_report_map = {"schema_version": 1, "studies": [{"study_id": "S1", "report_ids": ["R1"]}]}
+    retrieval_manifest = {"schema_version": 1, "records": [{
+        "study_id": "S1", "report_id": "R1", "retrieval_status": "automatic_retrieval_succeeded",
+    }]}
+    screening_manifest = {"schema_version": 1, "records": [{
+        "study_id": "S1", "report_id": "R1", "eligibility_status": "excluded",
+        "full_text_review_status": "complete_after_adjudication",
+        "reviewer_decisions": [
+            {"reviewer_id": "ft-a", "decision": "exclude"},
+            {"reviewer_id": "ft-b", "decision": "exclude"},
+        ],
+        "exclusion_reason": "Outcome not reported",
+        "source_locator": "Results, p. 4",
+    }]}
+    errors = validate_full_text_screening_manifest(screening_manifest, study_report_map, retrieval_manifest)
+    assert any("cannot be used to exclude" in error for error in errors)
+
+
+def test_awaiting_classification_record_validates_structured_follow_up_fields():
+    study_report_map = {"schema_version": 1, "studies": [{"study_id": "S1", "report_ids": ["R1"]}]}
+    retrieval_manifest = {"schema_version": 1, "records": [{
+        "study_id": "S1", "report_id": "R1", "retrieval_status": "awaiting_manual_acquisition",
+    }]}
+    screening_manifest = {"schema_version": 1, "records": [{
+        "study_id": "S1", "report_id": "R1", "eligibility_status": "awaiting_classification",
+        "full_text_review_status": "not_started", "reviewer_decisions": [],
+        "awaiting_classification": {"reason": "Paywall", "next_action": "CARSI login"},
+    }]}
+    errors = validate_full_text_screening_manifest(screening_manifest, study_report_map, retrieval_manifest)
+    assert any("awaiting_classification.owner" in error for error in errors)
+    screening_manifest["records"][0]["awaiting_classification"] = {
+        "reason": "Paywall", "next_action": "CARSI login", "owner": "PI",
+        "created_at": "2026-10-01", "next_review_at": "2026-10-15", "source_locator": "queue row 1",
+    }
+    assert validate_full_text_screening_manifest(screening_manifest, study_report_map, retrieval_manifest) == []
+
+
+def test_protocol_requires_search_rerun_and_author_contact_contracts():
+    protocol = json.loads(_valid_protocol_text())
+    assert validate_review_protocol(protocol) == []
+    protocol["search"]["rerun_policy"]["max_months_since_last_search"] = 11
+    assert any("max_months_since_last_search" in error for error in validate_review_protocol(protocol))
+    protocol = json.loads(_valid_protocol_text())
+    protocol["data_collection"]["author_contact"]["log_path"] = "../contact.csv"
+    assert any("author_contact.log_path" in error for error in validate_review_protocol(protocol))
+
+
 def test_stage_submissions_require_fulltext_and_extraction_manifests(tmp_path, monkeypatch):
     monkeypatch.setattr(stage_ledger_module, "STAGES", [("fulltext_retrieval", "Full-text retrieval")])
     monkeypatch.setattr(stage_ledger_module, "STAGE_IDS", ["fulltext_retrieval"])

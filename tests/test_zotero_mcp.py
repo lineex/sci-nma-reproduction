@@ -70,6 +70,23 @@ def test_discovery_exposes_current_tool_names_descriptions_and_schemas():
     assert tools[0].as_dict()["annotations"] == {}
 
 
+def test_nested_data_item_is_unwrapped_to_the_item_record():
+    from sci_nma_agent.databases.zotero_mcp import _records_from_response
+
+    rows = _records_from_response({"data": {"item": {"key": "ITEM1", "title": "Report"}}})
+    assert rows == [{"key": "ITEM1", "title": "Report"}]
+
+
+def test_attachment_inventory_accepts_direct_nested_attachment_lists():
+    from sci_nma_agent.databases.zotero_mcp import _attachment_inventory
+
+    inventory = _attachment_inventory(
+        {"data": [{"itemType": "attachment", "key": "ATT1"}]}
+    )
+    assert inventory["keys"] == ["ATT1"]
+    assert inventory["cardinality"] == 1
+
+
 def test_absent_capability_is_reported_without_calling_other_tools():
     session = MockSession([_tool("list_collections", "List Zotero collections")])
     client = ZoteroMCPReadClient(session)
@@ -927,6 +944,43 @@ def test_write_client_requires_advertised_refresh_schema():
     _run(client.discover_tools())
     with pytest.raises(MissingToolCapability, match="metadata-refresh"):
         _run(client.refresh_metadata("ITEM1"))
+
+
+def test_metadata_read_tool_is_not_selected_as_a_write_capability():
+    session = MockSession(
+        [_tool("get_metadata", "Get item metadata", {"item_key": {"type": "string"}}, ["item_key"])],
+    )
+    client = ZoteroMCPWriteClient(session)
+    _run(client.discover_tools())
+    with pytest.raises(MissingToolCapability, match="metadata-refresh"):
+        _run(client.refresh_metadata("ITEM1"))
+
+
+def test_write_action_enum_maps_import_to_supported_attach_alias():
+    session = MockSession(
+        [
+            _tool(
+                "write_item",
+                "Write local PDF attachment",
+                {
+                    "action": {"type": "string", "enum": ["attach"]},
+                    "parentItemKey": {"type": "string"},
+                    "filePath": {"type": "string"},
+                },
+                ["action", "parentItemKey", "filePath"],
+            ),
+        ],
+        {("write_item", 0): SimpleNamespace(isError=False, structuredContent={"key": "ATT1"})},
+    )
+    client = ZoteroMCPWriteClient(session)
+    _run(client.discover_tools())
+    _run(client.attach_pdf("ITEM1", "C:/tmp/paper.pdf"))
+    assert session.calls == [
+        (
+            "write_item",
+            {"action": "attach", "parentItemKey": "ITEM1", "filePath": "C:/tmp/paper.pdf"},
+        )
+    ]
 
 
 

@@ -144,3 +144,50 @@ def test_fulltext_acquire_plan_cli_writes_queue(tmp_path, monkeypatch, capsys):
     result = json.loads(capsys.readouterr().out)
     assert result["record_count"] == 1
     assert json.loads(output.read_text(encoding="utf-8"))["records"][0]["download"]["status"] == "manual_doi_or_identifier_required"
+
+
+def test_acquisition_sync_persists_raw_mcp_evidence_and_manifest_binding(tmp_path):
+    project = tmp_path
+    (project / "screening").mkdir()
+    (project / "verification").mkdir()
+    manifest_path = project / "screening" / "full_text_retrieval_manifest.json"
+    manifest_path.write_text(
+        json.dumps({"schema_version": 1, "records": [{"study_id": "S1", "report_id": "R1"}]}),
+        encoding="utf-8",
+    )
+    queue_path = project / "screening" / "full_text_acquisition_queue.json"
+    queue = {
+        "source_manifest_path": str(manifest_path),
+        "source_manifest_sha256": cli.retrieval_manifest_base_hash(
+            json.loads(manifest_path.read_text(encoding="utf-8"))
+        ),
+        "records": [{
+            "study_id": "S1",
+            "report_id": "R1",
+            "doi": "10.1000/test",
+            "doi_resolution": {"status": "present"},
+            "download": {"status": "succeeded", "pdf_sha256": "a" * 64},
+            "institutional_access": {"status": "not_started"},
+            "zotero": {"status": "verified"},
+            "discrepancy_status": "none",
+        }],
+    }
+    cli._sync_acquisition_artifacts(queue_path, queue)
+    saved_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    saved_queue = json.loads(queue_path.read_text(encoding="utf-8"))
+    assert saved_manifest["acquisition_queue_path"] == "screening/full_text_acquisition_queue.json"
+    assert len(saved_manifest["acquisition_queue_sha256"]) == 64
+    assert saved_manifest["records"][0]["acquisition_queue_status"]["zotero"]["status"] == "verified"
+    assert saved_queue["source_manifest_sha256"] == queue["source_manifest_sha256"]
+
+
+def test_write_evidence_snapshot_retains_raw_response_hash():
+    evidence = ToolCallEvidence(
+        "import_by_identifier",
+        {"doi": "10.1000/test"},
+        SimpleNamespace(structuredContent={"key": "ITEM1"}),
+        "2026-10-01T00:00:00+00:00",
+    )
+    snapshot = cli._write_evidence_snapshot(evidence)
+    assert snapshot["raw_response"]["structuredContent"]["key"] == "ITEM1"
+    assert len(snapshot["raw_response_sha256"]) == 64

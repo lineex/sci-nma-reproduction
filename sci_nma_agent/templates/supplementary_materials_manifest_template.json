@@ -358,6 +358,13 @@
     "journal_author_instructions_checked": false,
     "prisma_2020_abstract_complete": false
   },
+  "search_recheck": {
+    "status": "planned",
+    "last_search_date": "",
+    "submission_date": "",
+    "record_path": "search/recheck_log.json",
+    "record_sha256": ""
+  },
   "archive": {
     "archive_path": "reporting/submission_archive.zip",
     "archive_sha256": "",

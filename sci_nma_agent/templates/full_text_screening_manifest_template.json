@@ -2,6 +2,7 @@
   "schema_version": 1,
   "study_report_map_sha256": "STUDY_REPORT_MAP_SHA256",
   "full_text_retrieval_manifest_sha256": "FULL_TEXT_RETRIEVAL_MANIFEST_SHA256",
+  "awaiting_classification_schema_version": 1,
   "records": [
     {
       "study_id": "STUDY_ID",
@@ -13,8 +14,18 @@
         {"reviewer_id": "FULLTEXT_REVIEWER_B", "decision": "include"}
       ],
       "adjudicator_id": null,
+      "exclusion_reason_code": null,
+      "eligibility_basis": "Eligible criteria verified in the full text",
       "exclusion_reason": null,
-      "source_locator": null
+      "source_locator": null,
+      "awaiting_classification": {
+        "reason": "",
+        "next_action": "",
+        "owner": "",
+        "created_at": "",
+        "next_review_at": "",
+        "source_locator": ""
+      }
     }
   ]
 }

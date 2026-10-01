@@ -50,6 +50,50 @@ def test_prisma_flow_violation_detection():
     assert any("Screening mismatch" in e for e in errors)
 
 
+def test_prisma_flow_keeps_report_and_study_counts_separate():
+    flow = {
+        "databases": {"PubMed": 3},
+        "total_identified": 3,
+        "duplicates_removed": 0,
+        "records_screened": 3,
+        "screening_excluded": 0,
+        "reports_sought": 3,
+        "reports_not_retrieved": 0,
+        "reports_assessed": 3,
+        "fulltext_excluded": 0,
+        "reports_included": 3,
+        "studies_included": 1,
+        "included_study_ids": ["STUDY-1", "STUDY-1", "STUDY-1"],
+    }
+    passed, errors, metrics = Gate1SearchFlow.validate_prisma_flow(flow)
+    assert passed is False
+    assert any("included_study_ids must be unique" in error for error in errors)
+    assert metrics["reports_included"] == 3
+    assert metrics["studies_included"] == 1
+
+
+def test_prisma_flow_keeps_pending_fulltext_out_of_included_reports():
+    flow = {
+        "databases": {"PubMed": 2},
+        "total_identified": 2,
+        "duplicates_removed": 0,
+        "records_screened": 2,
+        "screening_excluded": 0,
+        "reports_sought": 2,
+        "reports_not_retrieved": 0,
+        "reports_assessed": 2,
+        "fulltext_excluded": 0,
+        "reports_included": 1,
+        "fulltext_pending": 1,
+        "studies_included": 1,
+    }
+    passed, errors, metrics = Gate1SearchFlow.validate_prisma_flow(flow)
+    assert passed is True
+    assert errors == []
+    assert metrics["reports_included"] == 1
+    assert metrics["fulltext_pending"] == 1
+
+
 def test_search_syntax_parentheses():
     query_unbalanced = "(sepsis OR septic shock AND (corticosteroids)"
     passed, errors = Gate1SearchFlow.validate_search_syntax("PubMed", query_unbalanced)

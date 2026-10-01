@@ -551,13 +551,33 @@ class AgentStageLedger:
                 )
                 if retrieval_errors:
                     raise StageLedgerError("Full-text retrieval validation failed: " + "; ".join(retrieval_errors))
+                retrieval_data = json.loads(manifest_paths[0].read_text(encoding="utf-8"))
+                # A post-screen DOI/PDF acquisition queue is part of the
+                # formal retrieval evidence once the manifest declares its
+                # binding.  Requiring the exact declared path prevents a
+                # queue from being generated or edited outside the reviewed
+                # stage artifact set.
+                declared_queue_path = retrieval_data.get("acquisition_queue_path")
+                if declared_queue_path:
+                    queue_binding_records = [
+                        record for record in artifact_manifest
+                        if record.get("path") == declared_queue_path
+                    ]
+                    if len(queue_binding_records) != 1:
+                        raise StageLedgerError(
+                            "Full-text retrieval must submit exactly one acquisition queue at the "
+                            "manifest-declared acquisition_queue_path"
+                        )
+                    if retrieval_data.get("acquisition_queue_sha256") != queue_binding_records[0].get("sha256"):
+                        raise StageLedgerError(
+                            "Full-text retrieval acquisition queue artifact hash does not match the manifest binding"
+                        )
                 queue_records = [
                     record for record in artifact_manifest
                     if Path(record["path"]).name == "manual_fulltext_queue.json"
                 ]
                 if len(queue_records) > 1:
                     raise StageLedgerError("Full-text retrieval may submit at most one manual_fulltext_queue.json")
-                retrieval_data = json.loads(manifest_paths[0].read_text(encoding="utf-8"))
                 has_manual_rows = any(
                     isinstance(record, dict)
                     and record.get("retrieval_status") in MANUAL_QUEUE_STATES | {"manual_confirmed"}

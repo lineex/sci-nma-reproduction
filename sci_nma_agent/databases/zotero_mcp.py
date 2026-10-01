@@ -783,6 +783,7 @@ class ZoteroMCPWriteClient:
     """
 
     _MUTATION_TERMS = {"add", "attach", "create", "edit", "import", "insert", "metadata", "refresh", "set", "update", "upload", "write"}
+    _WRITE_VERBS = _MUTATION_TERMS - {"metadata"}
 
     def __init__(self, session: Any, endpoint: Optional[str] = None):
         self._session = session
@@ -850,7 +851,7 @@ class ZoteroMCPWriteClient:
     async def attach_pdf(self, item_key: str, pdf_path: str) -> ToolCallEvidence:
         tool = self._select_write_tool(
             "PDF attachment",
-            lambda candidate: (_mentions(candidate, "attach", "upload", "add", "import") > 0)
+            lambda candidate: (_mentions(candidate, "attach", "attachment", "upload", "add", "import") > 0)
             and (_mentions(candidate, "file", "pdf", "attachment") or self._has_role(candidate, "file_path")),
         )
         if tool is None:
@@ -872,14 +873,31 @@ class ZoteroMCPWriteClient:
     def _select_write_tool(self, capability: str, predicate: Any) -> Optional[MCPToolDescriptor]:
         self._require_discovery()
         candidates = [tool for tool in self._tools if self._is_write_tool(tool) and predicate(tool)]
-        return max(candidates, key=lambda tool: (len(_tokens(tool.name + " " + tool.description)), tool.name)) if candidates else None
+        if not candidates:
+            return None
+        scored = [
+            (len(_tokens(tool.name + " " + tool.description)), tool)
+            for tool in candidates
+        ]
+        best_score = max(score for score, _tool in scored)
+        best = [tool for score, tool in scored if score == best_score]
+        if len(best) > 1:
+            raise MissingToolCapability(
+                f"Zotero MCP advertises multiple equally suitable tools for {capability}: "
+                + ", ".join(sorted(tool.name for tool in best))
+                + "; explicit schema selection is required."
+            )
+        return best[0]
 
     @classmethod
     def _is_write_tool(cls, tool: MCPToolDescriptor) -> bool:
         if tool.read_only_hint is True:
             return False
         terms = _tokens(tool.name + " " + tool.description)
-        return bool(terms & cls._MUTATION_TERMS)
+        # ``metadata`` alone is descriptive, not evidence of mutation:
+        # get_metadata/read_metadata must not be called through the write
+        # facade when a server omits readOnlyHint.
+        return bool(terms & cls._WRITE_VERBS)
 
     @staticmethod
     def _has_role(tool: MCPToolDescriptor, role: str) -> bool:
@@ -903,6 +921,37 @@ class ZoteroMCPWriteClient:
                 schema_type = schema.get("type")
                 if schema_type == "array" and not isinstance(value, (list, tuple)):
                     value = [value]
+            if role == "action" and isinstance(schema, Mapping):
+                const = schema.get("const")
+                if const is not None:
+                    value = const
+                else:
+                    enum = schema.get("enum")
+                    if isinstance(enum, list):
+                        normalized_requested = re.sub(r"[^a-z0-9]", "", str(value).lower())
+                        choices = {
+                            re.sub(r"[^a-z0-9]", "", str(choice).lower()): choice
+                            for choice in enum
+                        }
+                        if normalized_requested in choices:
+                            value = choices[normalized_requested]
+                        else:
+                            aliases = {
+                                "import": ("import", "attach", "upload", "add", "create"),
+                            }
+                            selected = next(
+                                (
+                                    choices[alias]
+                                    for alias in aliases.get(normalized_requested, ())
+                                    if alias in choices
+                                ),
+                                None,
+                            )
+                            if selected is None:
+                                raise MissingToolCapability(
+                                    f"Tool {tool.name!r} does not advertise a compatible action for {value!r}."
+                                )
+                            value = selected
             arguments[str(name)] = value
         missing = [str(name) for name in _required_args(tool) if name not in arguments]
         if missing:
@@ -1173,16 +1222,40 @@ def _records_from_response(response: Any) -> List[Mapping[str, Any]]:
                     break
                 except json.JSONDecodeError:
                     continue
-    if isinstance(structured, list):
-        return [record for record in structured if isinstance(record, Mapping)]
-    if isinstance(structured, Mapping):
-        for key in ("collection", "collections", "item", "items", "results", "data", "records"):
-            nested = structured.get(key)
-            if isinstance(nested, Mapping):
-                return [nested]
-            if isinstance(nested, list):
-                return [record for record in nested if isinstance(record, Mapping)]
-        return [structured]
+    def unwrap(value: Any) -> List[Mapping[str, Any]]:
+        if isinstance(value, list):
+            return [record for record in value if isinstance(record, Mapping)]
+        if not isinstance(value, Mapping):
+            return []
+        # A Zotero item commonly has an outer ``key`` plus a nested ``data``
+        # payload. Preserve that outer mapping so callers retain the key while
+        # ``record_identity`` can inspect its nested metadata.
+        direct_identity = any(
+            value.get(name) not in (None, "")
+            for name in ("key", "itemKey", "item_key", "collectionKey", "collection_key", "id")
+        )
+        preferred = (
+            "collection", "collections", "item", "items", "result", "results",
+            "record", "records",
+        )
+        for key in preferred:
+            if key in value:
+                nested = value.get(key)
+                # An explicitly empty result is a valid terminal page, not a
+                # wrapper record. Preserve it so pagination can stop.
+                if isinstance(nested, list) and not nested:
+                    return []
+                rows = unwrap(nested)
+                if rows:
+                    return rows
+        if not direct_identity and isinstance(value.get("data"), (Mapping, list)):
+            rows = unwrap(value["data"])
+            if rows:
+                return rows
+        return [value]
+
+    if isinstance(structured, (Mapping, list)):
+        return unwrap(structured)
     return []
 
 
@@ -1403,11 +1476,22 @@ def _has_safe_read_action_schema(tool: MCPToolDescriptor) -> bool:
 
 def _attachment_inventory(value: Any) -> Dict[str, Any]:
     attachments: List[Mapping[str, Any]] = []
+    attachment_object_ids: set[int] = set()
     observed = False
+
+    def add_attachment(item: Mapping[str, Any]) -> None:
+        marker = id(item)
+        if marker not in attachment_object_ids:
+            attachment_object_ids.add(marker)
+            attachments.append(item)
 
     def walk(node: Any) -> None:
         nonlocal observed
         if isinstance(node, Mapping):
+            child_type = str(_field(node, "itemType", "item_type", "type", default="")).lower()
+            if "attachment" in child_type:
+                observed = True
+                add_attachment(node)
             for key, nested in node.items():
                 normalized = re.sub(r"[^a-z0-9]", "", str(key).lower())
                 if normalized in {"attachments", "children"} and isinstance(nested, list):
@@ -1416,7 +1500,13 @@ def _attachment_inventory(value: Any) -> Dict[str, Any]:
                         if isinstance(child, Mapping):
                             child_type = str(_field(child, "itemType", "item_type", "type", default="")).lower()
                             if normalized == "attachments" or "attachment" in child_type:
-                                attachments.append(child)
+                                add_attachment(child)
+                            # Continue walking nested wrappers (for example
+                            # ``children: [{data: {...}}]``) while avoiding
+                            # assumptions about a single response shape.
+                            walk(child)
+                elif isinstance(nested, list):
+                    walk(nested)
                 elif isinstance(nested, Mapping):
                     walk(nested)
         elif isinstance(node, list):
