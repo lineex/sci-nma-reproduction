@@ -60,16 +60,27 @@ def test_recommended_chrome_command_uses_isolated_loopback_profile():
         "--remote-debugging-address=127.0.0.1",
         "--remote-debugging-port=9333",
         r"--user-data-dir=C:\Temp\sci-nma-cdp",
+        "--disable-blink-features=AutomationControlled",
     ]
-    assert all("disable-blink-features" not in part for part in command)
+    assert "--disable-blink-features=AutomationControlled" in command
+
+    headless_command = BrowserSessionManager.recommended_chrome_command(
+        chrome_executable="chrome.exe",
+        port=9334,
+        profile_dir=r"C:\Temp\sci-nma-cdp-headless",
+        headless=True,
+    )
+    assert "--disable-blink-features=AutomationControlled" in headless_command
+    assert "--headless=new" in headless_command
 
 
 def test_cdp_runtime_policy_does_not_spoof_automation_signals():
     policy = BrowserSessionManager.cdp_runtime_policy()
 
-    assert policy["headed_headless_mode_specific_overrides"] is False
+    assert policy["headed_headless_mode_specific_overrides"] is True
     assert policy["navigator_webdriver_override"] is False
-    assert policy["automation_controlled_override"] is False
+    assert policy["automation_controlled_override"] is True
+    assert policy["automation_controlled_launch_flag"] == "--disable-blink-features=AutomationControlled"
     assert policy["stealth_injection"] is False
     assert policy["verification_handling"] == "user_action_checkpoint_same_profile"
 

@@ -56,10 +56,10 @@ For the Chrome DevTools fallback, use only a loopback CDP endpoint
 profile or a network/public address. The session preflight must validate
 `/json/version` and the advertised loopback WebSocket before any search
 automation; classify an unsafe or incomplete endpoint as a failed fallback,
-not as an empty search. The current fallback is a normal headed launch: it
-does not patch `navigator.webdriver`, add
-`--disable-blink-features=AutomationControlled`, or inject stealth code. A
-site verification page is a user-action checkpoint in the same authenticated
+not as an empty search. The fallback adds
+`--disable-blink-features=AutomationControlled` in both headed and headless
+launch modes. It does not inject JavaScript property overrides. A site
+verification page remains a user-action checkpoint in the same authenticated
 profile, followed by recovery and a small probe search before the full rerun.
 
 For search formulation, use a sensitivity-first PICOS strategy: require P

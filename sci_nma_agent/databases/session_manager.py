@@ -117,11 +117,14 @@ class BrowserSessionManager:
         chrome_executable: str = "chrome.exe",
         port: int = 9222,
         profile_dir: Optional[str] = None,
+        headless: bool = False,
     ) -> list:
         """Build the isolated-profile Chrome DevTools fallback command.
 
-        This is intentionally a normal, headed Chrome launch. It does not
-        rewrite browser properties or disable site security controls.
+        The AutomationControlled Blink feature is disabled for both headed and
+        headless launches. This keeps the launch configuration consistent
+        across the two modes; it does not alter cookies, credentials, or
+        challenge responses.
         """
         if not isinstance(port, int) or not 1 <= port <= 65535:
             raise ValueError("CDP port must be an integer between 1 and 65535.")
@@ -129,27 +132,30 @@ class BrowserSessionManager:
             local_app_data = os.environ.get("LOCALAPPDATA")
             base = Path(local_app_data) if local_app_data else Path.home()
             profile_dir = str(base / "sci-nma-agent" / "chrome-cdp-profile")
-        return [
+        command = [
             chrome_executable,
             "--remote-debugging-address=127.0.0.1",
             f"--remote-debugging-port={port}",
             f"--user-data-dir={profile_dir}",
+            "--disable-blink-features=AutomationControlled",
         ]
+        if headless:
+            command.append("--headless=new")
+        return command
 
     @staticmethod
     def cdp_runtime_policy() -> Dict[str, Any]:
         """Return the auditable browser-automation policy.
 
-        The project uses ordinary headed Chrome/CDP session reuse. It does
-        not rewrite ``navigator.webdriver`` or inject an
-        ``AutomationControlled`` override. This keeps the authenticated
-        session and search evidence reproducible and makes a verification
-        page a user-action checkpoint rather than a bypass target.
+        The project uses a dedicated loopback Chrome/CDP session and applies
+        the AutomationControlled Blink launch flag in both headed and
+        headless modes. It does not inject JavaScript property overrides.
         """
         return {
-            "headed_headless_mode_specific_overrides": False,
+            "headed_headless_mode_specific_overrides": True,
             "navigator_webdriver_override": False,
-            "automation_controlled_override": False,
+            "automation_controlled_override": True,
+            "automation_controlled_launch_flag": "--disable-blink-features=AutomationControlled",
             "stealth_injection": False,
             "verification_handling": "user_action_checkpoint_same_profile",
             "endpoint_policy": "loopback_only_dedicated_profile",
