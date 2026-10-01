@@ -16,14 +16,14 @@ sci-nma-agent zotero-mcp-check --url http://127.0.0.1:23120/mcp
 
 The check initializes the MCP session and lists its current tool names,
 descriptions, and schemas. It does not read or write Zotero library records.
-The library exposes `ZoteroMCPReadClient` for a workflow executor that needs to
-resolve a collection, page through items, inspect a record, or request cached
-content. Tool discovery is refreshed at connection time; only advertised
-read capabilities with a conservative name/schema allowlist are callable
-through that facade. An MCP `readOnlyHint` is retained when supplied; a false
-hint blocks the tool, while absence of this optional annotation is not treated
-as proof of mutability. Mutating names, parameters, and action choices remain
-blocked. If no MCP server is running, keep the connection error in the retrieval
+The library exposes `ZoteroMCPReadClient` for collection/item/content reads and
+an explicitly separate `ZoteroMCPWriteClient` for identifier import, PDF
+attachment, and metadata refresh. Both clients discover the active schema at
+connection time. The write facade only calls an advertised mutation capability
+when the CLI is invoked with an explicit `--confirm-write`; it never guesses a
+tool name or silently converts a read failure into a write. Read-only export
+therefore remains safe while the post-screen acquisition workflow can use the
+plugin's import/update tools when that installed version advertises them. If no MCP server is running, keep the connection error in the retrieval
 audit and use the local read-only bridge when available.
 
 To persist one collection's MCP evidence and extracted text without modifying
@@ -54,7 +54,8 @@ schemas are inspected from each connected server at runtime.
 
 | Workflow action | Where it happens | Current integration behavior |
 |---|---|---|
-| Create the project collection, import citations, and let Zotero fetch attachments | Zotero desktop/plugin, performed by the user | Outside this CLI; the MCP facade never invokes library writes or downloads |
+| Create the project collection and complete CARSI/WebVPN login | Zotero desktop/browser, performed by the user | User-action checkpoint; credentials remain in the user's session |
+| Import a DOI/PMID or attach a PDF | Zotero MCP write facade | Explicit `fulltext-acquire zotero-push --confirm-write`; only advertised schemas are called and raw evidence is retained |
 | Resolve and enumerate the named collection | Zotero MCP server | `zotero-mcp-export` uses only advertised, schema-matched read capabilities |
 | Extract cached text and check full-text state | Zotero MCP server, when a compatible read schema is advertised | Export preserves the exact call, attachment identity, returned locators, and hashes |
 | Confirm a manually attached report and resume retrieval | `manual-fulltext confirm` plus the gated review workflow | Re-reads the exact item/attachment, records provenance, versions the manifest, and reopens retrieval; raw export alone does not confirm a report |

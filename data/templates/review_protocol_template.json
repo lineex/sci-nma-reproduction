@@ -28,7 +28,12 @@
         "zotero_mcp",
         "zotero_local_read_only"
       ],
-      "selection_policy": "try_primary_then_fallback"
+      "selection_policy": "try_primary_then_fallback",
+      "doi_resolver": "metapub_optional",
+      "pdf_provider": "scansci_pdf",
+      "institutional_access": "carsi_user_action_checkpoint",
+      "zotero_write_policy": "explicit_confirmation_then_readback",
+      "deduplication_policy": "doi_then_pdf_sha256"
     },
     "statistics": {
       "primary_engine": "R",
@@ -186,7 +191,19 @@
       "page_locator_when_available",
       "full_text_review_status",
       "fact_status_per_extracted_field"
-    ]
+    ],
+    "doi_resolution_policy": "Metapub optional: PMID lookup first, then exact title/year; preserve lookup unavailable, not found, and conflicting candidate states.",
+    "pdf_provider": "ScanSci PDF connector configured outside this repository; record command, route, output hash, and duplicate status.",
+    "institutional_access_policy": "CARSI/WebVPN/library SSO is a user-action checkpoint; resume the same queued report after login.",
+    "zotero_import_policy": "Explicitly confirmed Zotero MCP write, followed by exact item readback and metadata verification.",
+    "metadata_verification_fields": [
+      "DOI",
+      "PMID",
+      "title",
+      "year"
+    ],
+    "discrepancy_table_path": "verification/zotero_metadata_discrepancies.csv",
+    "deduplication_policy": "DOI first, then PDF SHA-256; never download an already-hashed DOI twice."
   },
   "data_collection": {
     "form_path": "data/data_extraction_template.csv",

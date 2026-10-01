@@ -1,8 +1,9 @@
-"""Read-only client facade for a configured Zotero MCP Streamable HTTP server.
+"""Schema-discovered Zotero MCP read and explicitly authorized write facades.
 
-The server's tools are discovered at runtime. This module deliberately does
-not encode a particular Zotero MCP tool schema and never invokes tools whose
-names indicate a mutation or import operation.
+The server's tools are discovered at runtime. ``ZoteroMCPReadClient`` remains
+strictly read-only; ``ZoteroMCPWriteClient`` is a separate opt-in facade for
+identifier import, PDF attachment, and metadata refresh when the live server
+advertises those capabilities.
 """
 
 from __future__ import annotations
@@ -770,6 +771,171 @@ class ZoteroMCPReadClient:
         raise MissingToolCapability(
             f"Zotero MCP capability {capability!r} is not advertised: server must provide {requirement}."
         )
+
+
+class ZoteroMCPWriteClient:
+    """Explicit write facade for identifier import and metadata refresh.
+
+    Write operations are kept separate from :class:`ZoteroMCPReadClient` so
+    read-only export cannot accidentally mutate a library.  The active MCP
+    schema is authoritative; an unavailable or ambiguous write capability is
+    surfaced for a user-action checkpoint rather than guessed.
+    """
+
+    _MUTATION_TERMS = {"add", "attach", "create", "edit", "import", "insert", "metadata", "refresh", "set", "update", "upload", "write"}
+
+    def __init__(self, session: Any, endpoint: Optional[str] = None):
+        self._session = session
+        self.endpoint = endpoint
+        self._tools: Tuple[MCPToolDescriptor, ...] = ()
+        self._discovered = False
+
+    @classmethod
+    @asynccontextmanager
+    async def connect(cls, url: str) -> AsyncIterator["ZoteroMCPWriteClient"]:
+        if sys.version_info < (3, 10):
+            raise ZoteroMCPError("Zotero MCP Streamable HTTP support requires Python 3.10 or newer.")
+        try:
+            from mcp import ClientSession
+            from mcp.client.streamable_http import streamable_http_client
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ZoteroMCPError("Install the optional MCP dependency with `pip install sci-nma-agent[mcp]`.") from exc
+        async with streamable_http_client(url) as (read_stream, write_stream, _):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                client = cls(session, endpoint=url)
+                await client.discover_tools()
+                yield client
+
+    @property
+    def tools(self) -> Tuple[MCPToolDescriptor, ...]:
+        return self._tools
+
+    async def discover_tools(self) -> Tuple[MCPToolDescriptor, ...]:
+        result = await self._session.list_tools()
+        raw_tools = _field(result, "tools", default=[])
+        descriptors: List[MCPToolDescriptor] = []
+        for raw_tool in raw_tools or []:
+            name = str(_field(raw_tool, "name", default="") or "").strip()
+            if not name:
+                continue
+            schema = _field(raw_tool, "inputSchema", "input_schema", default={})
+            schema = schema if isinstance(schema, Mapping) else _to_mapping(schema)
+            annotations = _field(raw_tool, "annotations", default={})
+            annotations = annotations if isinstance(annotations, Mapping) else _to_mapping(annotations)
+            read_only_hint = _field(annotations, "readOnlyHint", "read_only_hint", default=None)
+            descriptors.append(MCPToolDescriptor(
+                name=name,
+                description=str(_field(raw_tool, "description", default="") or ""),
+                input_schema=dict(schema),
+                annotations=dict(annotations),
+                read_only_hint=read_only_hint if isinstance(read_only_hint, bool) else None,
+                raw_tool=raw_tool,
+            ))
+        self._tools = tuple(descriptors)
+        self._discovered = True
+        return self._tools
+
+    async def import_by_identifier(self, identifier: str, collection: Optional[str] = None) -> ToolCallEvidence:
+        tool = self._select_write_tool(
+            "identifier import",
+            lambda candidate: _mentions(candidate, "import", "add", "create", "insert")
+            and (_mentions(candidate, "identifier", "doi", "pmid", "url") or self._has_role(candidate, "identifier")),
+        )
+        if tool is None:
+            raise MissingToolCapability("Zotero MCP does not advertise an identifier-import write tool.")
+        arguments = self._map_write_arguments(tool, {"identifier": identifier, "collection": collection})
+        return await self._invoke(tool, arguments)
+
+    async def attach_pdf(self, item_key: str, pdf_path: str) -> ToolCallEvidence:
+        tool = self._select_write_tool(
+            "PDF attachment",
+            lambda candidate: (_mentions(candidate, "attach", "upload", "add", "import") > 0)
+            and (_mentions(candidate, "file", "pdf", "attachment") or self._has_role(candidate, "file_path")),
+        )
+        if tool is None:
+            raise MissingToolCapability("Zotero MCP does not advertise a file-attachment write tool.")
+        arguments = self._map_write_arguments(tool, {"item": item_key, "file_path": pdf_path, "action": "import"})
+        return await self._invoke(tool, arguments)
+
+    async def refresh_metadata(self, item_key: str) -> ToolCallEvidence:
+        tool = self._select_write_tool(
+            "metadata refresh",
+            lambda candidate: _mentions(candidate, "refresh", "update", "edit", "metadata")
+            and self._has_role(candidate, "item"),
+        )
+        if tool is None:
+            raise MissingToolCapability("Zotero MCP does not advertise a metadata-refresh write tool.")
+        arguments = self._map_write_arguments(tool, {"item": item_key})
+        return await self._invoke(tool, arguments)
+
+    def _select_write_tool(self, capability: str, predicate: Any) -> Optional[MCPToolDescriptor]:
+        self._require_discovery()
+        candidates = [tool for tool in self._tools if self._is_write_tool(tool) and predicate(tool)]
+        return max(candidates, key=lambda tool: (len(_tokens(tool.name + " " + tool.description)), tool.name)) if candidates else None
+
+    @classmethod
+    def _is_write_tool(cls, tool: MCPToolDescriptor) -> bool:
+        if tool.read_only_hint is True:
+            return False
+        terms = _tokens(tool.name + " " + tool.description)
+        return bool(terms & cls._MUTATION_TERMS)
+
+    @staticmethod
+    def _has_role(tool: MCPToolDescriptor, role: str) -> bool:
+        properties = tool.input_schema.get("properties", {})
+        return any(_writer_role(str(name)) == role for name in properties) if isinstance(properties, Mapping) else False
+
+    @staticmethod
+    def _map_write_arguments(tool: MCPToolDescriptor, values: Mapping[str, Any]) -> Dict[str, Any]:
+        properties = tool.input_schema.get("properties", {})
+        properties = properties if isinstance(properties, Mapping) else {}
+        arguments: Dict[str, Any] = {}
+        for name in properties:
+            role = _writer_role(str(name))
+            if role not in values or values[role] is None:
+                continue
+            value = values[role]
+            if role == "metadata" and not isinstance(value, Mapping):
+                continue
+            schema = properties.get(name, {})
+            if role == "identifier" and isinstance(schema, Mapping):
+                schema_type = schema.get("type")
+                if schema_type == "array" and not isinstance(value, (list, tuple)):
+                    value = [value]
+            arguments[str(name)] = value
+        missing = [str(name) for name in _required_args(tool) if name not in arguments]
+        if missing:
+            raise MissingToolCapability(f"Tool {tool.name!r} requires unsupported write argument(s): {', '.join(missing)}")
+        return arguments
+
+    async def _invoke(self, tool: MCPToolDescriptor, arguments: Mapping[str, Any]) -> ToolCallEvidence:
+        response = await self._session.call_tool(tool.name, dict(arguments))
+        evidence = ToolCallEvidence(tool.name, dict(arguments), response, datetime.now(timezone.utc).replace(microsecond=0).isoformat())
+        if _field(response, "isError", "is_error", default=False) is True:
+            raise MCPToolCallError(evidence)
+        return evidence
+
+    def _require_discovery(self) -> None:
+        if not self._discovered:
+            raise ZoteroMCPError("Call discover_tools() before using the Zotero MCP write facade.")
+
+
+def _writer_role(name: str) -> Optional[str]:
+    key = re.sub(r"[^a-z0-9]", "", name.lower())
+    if key in {"doi", "pmid", "identifier", "identifiervalue", "url", "uri", "isbn", "query"} or "identifier" in key:
+        return "identifier"
+    if key in {"item", "itemkey", "itemid", "parentitem", "parentkey", "key"} or ("item" in key and "key" in key):
+        return "item"
+    if "collection" in key:
+        return "collection"
+    if key in {"filepath", "file", "path", "pdf", "pdffile", "attachment", "attachmentpath", "sourcepath"} or "filepath" in key:
+        return "file_path"
+    if key in {"metadata", "data", "fields", "itemdata", "properties"}:
+        return "metadata"
+    if key in {"action", "operation", "mode"}:
+        return "action"
+    return None
 
 
 def _field(value: Any, *names: str, default: Any = None) -> Any:

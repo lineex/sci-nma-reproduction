@@ -12,6 +12,7 @@ from sci_nma_agent.databases.zotero_mcp import (
     MissingToolCapability,
     PaginationError,
     ZoteroMCPReadClient,
+    ZoteroMCPWriteClient,
 )
 
 
@@ -902,3 +903,49 @@ def test_export_persists_successful_pages_when_a_later_page_returns_is_error(tmp
     assert manifest["error"]["evidence"]["raw_response"]["isError"] is True
     assert "second page failed" in manifest["error"]["message"]
     assert rows[0]["item_key"] == "ITEM1"
+
+
+
+def test_write_client_maps_identifier_import_and_rejects_read_only_tools():
+    session = MockSession(
+        [
+            _tool("import_by_identifier", "Import DOI or PMID into Zotero", {"doi": {"type": "string"}, "collection": {"type": "string"}}, ["doi"]),
+            _tool("get_item", "Read item", {"item_key": {"type": "string"}}, ["item_key"], annotations={"readOnlyHint": True}),
+        ],
+        {("import_by_identifier", 0): SimpleNamespace(isError=False, structuredContent={"key": "ITEM1"})},
+    )
+    client = ZoteroMCPWriteClient(session)
+    _run(client.discover_tools())
+    evidence = _run(client.import_by_identifier("10.1000/test", collection="COLL1"))
+    assert evidence.tool_name == "import_by_identifier"
+    assert session.calls == [("import_by_identifier", {"doi": "10.1000/test", "collection": "COLL1"})]
+
+
+def test_write_client_requires_advertised_refresh_schema():
+    session = MockSession([_tool("get_item", "Read item", {"item_key": {"type": "string"}}, ["item_key"])])
+    client = ZoteroMCPWriteClient(session)
+    _run(client.discover_tools())
+    with pytest.raises(MissingToolCapability, match="metadata-refresh"):
+        _run(client.refresh_metadata("ITEM1"))
+
+
+
+def test_write_client_supports_upstream_add_by_identifier_and_write_item_shapes():
+    session = MockSession(
+        [
+            _tool("add_by_identifier", "Import items by identifier", {"identifiers": {"type": "array", "items": {"type": "string"}}, "collectionKey": {"type": "string"}}, ["identifiers"]),
+            _tool("write_item", "Import local files as attachments", {"action": {"type": "string"}, "parentItemKey": {"type": "string"}, "filePath": {"type": "string"}}, ["action", "parentItemKey", "filePath"]),
+        ],
+        {
+            ("add_by_identifier", 0): SimpleNamespace(isError=False, structuredContent={"key": "ITEM1"}),
+            ("write_item", 0): SimpleNamespace(isError=False, structuredContent={"key": "ATTACH1"}),
+        },
+    )
+    client = ZoteroMCPWriteClient(session)
+    _run(client.discover_tools())
+    imported = _run(client.import_by_identifier("10.1000/test", collection="COLL1"))
+    attached = _run(client.attach_pdf("ITEM1", "C:/tmp/paper.pdf"))
+    assert imported.tool_name == "add_by_identifier"
+    assert attached.tool_name == "write_item"
+    assert session.calls[0] == ("add_by_identifier", {"identifiers": ["10.1000/test"], "collectionKey": "COLL1"})
+    assert session.calls[1] == ("write_item", {"action": "import", "parentItemKey": "ITEM1", "filePath": "C:/tmp/paper.pdf"})

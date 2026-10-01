@@ -26,6 +26,8 @@ from .databases.zotero_mcp import (
     MCPToolCallError,
     ZoteroMCPError,
     ZoteroMCPReadClient,
+    ZoteroMCPWriteClient,
+    _records_from_response,
 )
 from .workflow.stage_ledger import AgentStageLedger, StageLedgerError, STAGE_IDS
 from .workflow.manual_fulltext_queue import (
@@ -35,6 +37,16 @@ from .workflow.manual_fulltext_queue import (
     validate_manual_fulltext_queue_file,
 )
 from .meta_engine.pairwise import PairwiseMetaAnalysis
+from .workflow.fulltext_acquisition import (
+    ScanSciPDFAdapter,
+    build_acquisition_queue,
+    compare_identity,
+    load_json,
+    record_identity,
+    update_queue_with_download,
+    write_discrepancy_table,
+    write_json,
+)
 
 
 def main():
@@ -154,6 +166,38 @@ def main():
     manual_queue_confirm.add_argument("--agent-session", required=True, help="New orchestration session ID")
     manual_queue_confirm.add_argument("--url", default="http://127.0.0.1:23120/mcp", help="Zotero MCP Streamable HTTP endpoint")
 
+    # Command: post-screen full-text acquisition and identity reconciliation
+    acquisition_parser = subparsers.add_parser(
+        "fulltext-acquire",
+        help="Resolve DOI, run the configured ScanSci PDF connector, and reconcile Zotero metadata",
+    )
+    acquisition_actions = acquisition_parser.add_subparsers(dest="acquisition_action", required=True)
+    acquisition_plan = acquisition_actions.add_parser("plan", help="Build a DOI/ScanSci/CARSI/Zotero acquisition queue")
+    acquisition_plan.add_argument("--manifest", required=True, help="Full-text retrieval manifest JSON")
+    acquisition_plan.add_argument("--output", required=True, help="Versioned acquisition queue JSON")
+    acquisition_download = acquisition_actions.add_parser("download", help="Download one queued report through ScanSci PDF")
+    acquisition_download.add_argument("--queue", required=True)
+    acquisition_download.add_argument("--study-id", required=True)
+    acquisition_download.add_argument("--report-id", required=True)
+    acquisition_download.add_argument("--output-dir", required=True, help="Project-relative or absolute PDF output directory")
+    acquisition_download.add_argument("--executable", default="scansci-pdf")
+    acquisition_zotero_push = acquisition_actions.add_parser("zotero-push", help="Import a DOI and optionally attach a PDF through advertised Zotero MCP writes")
+    acquisition_zotero_push.add_argument("--queue", required=True)
+    acquisition_zotero_push.add_argument("--study-id", required=True)
+    acquisition_zotero_push.add_argument("--report-id", required=True)
+    acquisition_zotero_push.add_argument("--url", default="http://127.0.0.1:23120/mcp")
+    acquisition_zotero_push.add_argument("--collection")
+    acquisition_zotero_push.add_argument("--pdf", help="Optional PDF path to attach after identifier import")
+    acquisition_zotero_push.add_argument("--refresh-metadata", action="store_true", help="Request Zotero metadata refresh after import/attachment")
+    acquisition_zotero_push.add_argument("--confirm-write", action="store_true", help="Explicitly authorize the advertised Zotero MCP write calls")
+    acquisition_zotero_verify = acquisition_actions.add_parser("zotero-verify", help="Read back a Zotero item and write a discrepancy table")
+    acquisition_zotero_verify.add_argument("--queue", required=True)
+    acquisition_zotero_verify.add_argument("--study-id", required=True)
+    acquisition_zotero_verify.add_argument("--report-id", required=True)
+    acquisition_zotero_verify.add_argument("--item-key", required=True)
+    acquisition_zotero_verify.add_argument("--output", required=True, help="CSV discrepancy table")
+    acquisition_zotero_verify.add_argument("--url", default="http://127.0.0.1:23120/mcp")
+
     # Command: review-stage (multi-agent workflow gates)
     stage_parser = subparsers.add_parser(
         "review-stage",
@@ -253,6 +297,7 @@ def main():
             "nma_figure_table_spec_template.json": "data/nma_figure_table_spec_template.json",
             "title_abstract_screening_manifest_template.json": "screening/title_abstract_screening_manifest.json",
             "full_text_retrieval_manifest_template.json": "screening/full_text_retrieval_manifest.json",
+            "zotero_metadata_discrepancies_template.csv": "verification/zotero_metadata_discrepancies.csv",
             "full_text_screening_manifest_template.json": "screening/full_text_screening_manifest.json",
             "fact_status_manifest_template.json": "data/fact_status_manifest.json",
             "search_strategy_supplement_template.csv": "reporting/supplementary/search_strategy_supplement.csv",
@@ -449,6 +494,121 @@ def main():
                 print(json.dumps(result, ensure_ascii=False, indent=2))
         except (ManualFullTextQueueError, StageLedgerError, ZoteroMCPError, OSError, ValueError) as exc:
             print(f"Manual full-text operation failed: {exc}")
+            sys.exit(1)
+
+    elif args.command == "fulltext-acquire":
+        try:
+            if args.acquisition_action == "plan":
+                manifest_path = Path(args.manifest).expanduser().resolve()
+                manifest = load_json(manifest_path)
+                queue = build_acquisition_queue(manifest, source_path=str(manifest_path))
+                queue["source_manifest_sha256"] = __import__("hashlib").sha256(manifest_path.read_bytes()).hexdigest()
+                write_json(Path(args.output).expanduser().resolve(), queue)
+                print(json.dumps({"queue_path": str(Path(args.output).expanduser().resolve()), "record_count": len(queue["records"])}, ensure_ascii=False, indent=2))
+            elif args.acquisition_action == "download":
+                queue_path = Path(args.queue).expanduser().resolve()
+                queue = load_json(queue_path)
+                row = next((record for record in queue.get("records", []) if isinstance(record, dict) and (record.get("study_id"), record.get("report_id")) == (args.study_id, args.report_id)), None)
+                if row is None:
+                    raise ValueError("study/report is not present in the acquisition queue")
+                doi = row.get("doi")
+                if not doi:
+                    raise ValueError("this record has no resolved DOI; resolve or manually supply an identifier before download")
+                prior = next((candidate for candidate in queue.get("records", []) if isinstance(candidate, dict) and candidate is not row and candidate.get("doi") == doi and candidate.get("download", {}).get("status") in {"succeeded", "duplicate"} and candidate.get("download", {}).get("pdf_sha256")), None)
+                if prior:
+                    from .workflow.fulltext_acquisition import ScanSciResult
+                    result = ScanSciResult(
+                        "duplicate", "queue_doi_deduplication", [],
+                        pdf_path=prior.get("download", {}).get("pdf_path"),
+                        pdf_sha256=prior.get("download", {}).get("pdf_sha256"),
+                        duplicate_of=f"{prior.get('study_id')}/{prior.get('report_id')}",
+                    )
+                else:
+                    known_hashes = {
+                        str(candidate.get("doi")): str(candidate.get("download", {}).get("pdf_sha256"))
+                        for candidate in queue.get("records", []) if isinstance(candidate, dict) and candidate.get("download", {}).get("pdf_sha256")
+                    }
+                    result = ScanSciPDFAdapter(args.executable).download(doi, Path(args.output_dir).expanduser().resolve(), known_hashes=known_hashes)
+                update_queue_with_download(queue, (args.study_id, args.report_id), result)
+                write_json(queue_path, queue)
+                print(json.dumps({"queue_path": str(queue_path), "result": result.__dict__}, ensure_ascii=False, indent=2))
+                if result.status not in {"succeeded", "duplicate"}:
+                    sys.exit(2 if result.status == "carsi_user_action_required" else 1)
+            elif args.acquisition_action == "zotero-push":
+                if not args.confirm_write:
+                    raise ValueError("Zotero MCP writes require --confirm-write after reviewing the queued DOI/PDF")
+                queue_path = Path(args.queue).expanduser().resolve()
+                queue = load_json(queue_path)
+                row = next((record for record in queue.get("records", []) if isinstance(record, dict) and (record.get("study_id"), record.get("report_id")) == (args.study_id, args.report_id)), None)
+                if row is None or not row.get("doi"):
+                    raise ValueError("queued record or resolved DOI is missing")
+                def _item_key_from_response(value):
+                    if isinstance(value, dict):
+                        for key in ("key", "itemKey", "item_key", "id", "itemId"):
+                            candidate = value.get(key)
+                            if isinstance(candidate, str) and candidate.strip():
+                                return candidate.strip()
+                        for child in value.values():
+                            found = _item_key_from_response(child)
+                            if found:
+                                return found
+                    elif isinstance(value, list):
+                        for child in value:
+                            found = _item_key_from_response(child)
+                            if found:
+                                return found
+                    return None
+                async def push():
+                    async with ZoteroMCPWriteClient.connect(args.url) as client:
+                        import_evidence = await client.import_by_identifier(row["doi"], collection=args.collection)
+                        item_key = _item_key_from_response(import_evidence.raw_response)
+                        calls = [{"tool_name": import_evidence.tool_name, "arguments": dict(import_evidence.arguments), "called_at": import_evidence.called_at}]
+                        if args.pdf:
+                            if not item_key:
+                                raise ValueError("Zotero import did not return an item key needed for PDF attachment")
+                            pdf_path = Path(args.pdf).expanduser().resolve()
+                            if not pdf_path.is_file() or pdf_path.stat().st_size <= 0:
+                                raise ValueError(f"PDF path does not exist or is empty: {pdf_path}")
+                            attachment = await client.attach_pdf(item_key, str(pdf_path))
+                            calls.append({"tool_name": attachment.tool_name, "arguments": dict(attachment.arguments), "called_at": attachment.called_at})
+                        if args.refresh_metadata:
+                            if not item_key:
+                                raise ValueError("Zotero import did not return an item key needed for metadata refresh")
+                            refreshed = await client.refresh_metadata(item_key)
+                            calls.append({"tool_name": refreshed.tool_name, "arguments": dict(refreshed.arguments), "called_at": refreshed.called_at})
+                        return {"item_key": item_key, "write_calls": calls}
+                result = asyncio.run(push())
+                row.setdefault("zotero", {}).update({"status": "metadata_refresh_requested" if args.refresh_metadata else "import_requested", "item_key": result.get("item_key"), "write_calls": result["write_calls"]})
+                row.setdefault("route_attempts", []).append({"route": "zotero_mcp_write", "status": row["zotero"]["status"], "attempted_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()})
+                write_json(queue_path, queue)
+                print(json.dumps({"queue_path": str(queue_path), **result}, ensure_ascii=False, indent=2))
+            else:
+                queue = load_json(Path(args.queue).expanduser().resolve())
+                row = next((record for record in queue.get("records", []) if isinstance(record, dict) and (record.get("study_id"), record.get("report_id")) == (args.study_id, args.report_id)), None)
+                if row is None:
+                    raise ValueError("study/report is not present in the acquisition queue")
+                expected = row.get("expected_identity", {})
+                async def verify():
+                    async with ZoteroMCPReadClient.connect(args.url) as client:
+                        evidence = await client.read_item_details(args.item_key)
+                        records = _records_from_response(evidence.raw_response)
+                        item = next((candidate for candidate in records if isinstance(candidate, dict) and str(candidate.get("key", candidate.get("itemKey", ""))) == args.item_key), records[0] if records else {})
+                        observed = record_identity(item if isinstance(item, dict) else {})
+                        return evidence, observed
+                evidence, observed = asyncio.run(verify())
+                discrepancies = compare_identity(expected, observed)
+                for discrepancy in discrepancies:
+                    discrepancy.update({"study_id": args.study_id, "report_id": args.report_id, "item_key": args.item_key, "evidence_locator": evidence.tool_name})
+                digest = write_discrepancy_table(discrepancies, Path(args.output).expanduser().resolve())
+                row.setdefault("zotero", {}).update({"status": "verified" if not discrepancies else "metadata_mismatch", "item_key": args.item_key, "metadata_readback": observed, "verification_status": "passed" if not discrepancies else "failed", "verification_tool": evidence.tool_name})
+                row["discrepancy_status"] = "none" if not discrepancies else "open"
+                row["discrepancies"] = discrepancies
+                write_json(Path(args.queue).expanduser().resolve(), queue)
+                print(json.dumps({"verification_status": row["zotero"]["verification_status"], "discrepancy_count": len(discrepancies), "discrepancy_table": str(Path(args.output).expanduser().resolve()), "discrepancy_table_sha256": digest}, ensure_ascii=False, indent=2))
+                if discrepancies:
+                    sys.exit(2)
+        except (ZoteroMCPError, MCPToolCallError, OSError, ValueError, KeyError) as exc:
+            print(f"Full-text acquisition operation failed: {exc}")
             sys.exit(1)
 
     elif args.command == "review-stage":

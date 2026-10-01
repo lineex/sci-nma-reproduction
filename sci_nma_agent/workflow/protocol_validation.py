@@ -192,6 +192,11 @@ def _validate_execution_defaults(protocol: Dict[str, Any], errors: List[str]) ->
             "fallback_connector": "zotero_local_read_only",
             "fallback_order": ["zotero_mcp", "zotero_local_read_only"],
             "selection_policy": "try_primary_then_fallback",
+            "doi_resolver": "metapub_optional",
+            "pdf_provider": "scansci_pdf",
+            "institutional_access": "carsi_user_action_checkpoint",
+            "zotero_write_policy": "explicit_confirmation_then_readback",
+            "deduplication_policy": "doi_then_pdf_sha256",
         }
         for field, expected in expected_full_text.items():
             if full_text.get(field) != expected:

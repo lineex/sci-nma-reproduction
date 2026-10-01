@@ -72,6 +72,17 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
    - CDP status is explicit: the fallback applies `--disable-blink-features=AutomationControlled` consistently in headed and headless modes. It does not inject JavaScript property overrides; verification remains a same-profile recovery checkpoint.
    - Active probe validates institutional access for Embase (Elsevier), Web of Science (Clarivate), and Cochrane (Wiley) before export, preventing export throttles.
 
+4. **Post-screen full-text acquisition and Zotero reconciliation**:
+   after title/abstract screening, `fulltext-acquire plan` resolves missing DOIs
+   with optional Metapub (PMID, then exact title/year), sends resolved DOIs to
+   the configured ScanSci PDF connector, deduplicates by DOI/PDF SHA-256, and
+   pauses at a user-completed CARSI/WebVPN checkpoint when a paywall is met.
+   Explicitly confirmed Zotero MCP writes can import the identifier/attach the
+   PDF/refresh metadata when the live server advertises those schemas. The
+   exact item is then read back through MCP; DOI/PMID/title/year mismatches are
+   written to `verification/zotero_metadata_discrepancies.csv` and block
+   downstream review until resolved. See `docs/FULLTEXT_ACQUISITION.md`.
+
 3. **Multi-Source Provenance-Retaining Deduplication (带溯源多标签去重)**:
    - Multi-tier matching: DOI exact match -> PMID exact match -> Normalized Title + Year string similarity.
    - When duplicate citations merge, contributing database source tags (`sources: ["PubMed", "Embase", "Web of Science"]`) and native database IDs (`pmid`, `embase_pui`, `wos_uid`, `cochrane_id`) are preserved intact.

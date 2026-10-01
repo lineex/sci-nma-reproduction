@@ -62,6 +62,16 @@ launch modes. It does not inject JavaScript property overrides. A site
 verification page remains a user-action checkpoint in the same authenticated
 profile, followed by recovery and a small probe search before the full rerun.
 
+After title/abstract screening, run the post-screen full-text acquisition route:
+resolve missing DOI values with optional Metapub (PMID, then exact title/year),
+call the configured ScanSci PDF connector for a DOI, deduplicate by DOI then
+PDF SHA-256, and pause for a user-completed institutional CARSI/WebVPN login
+when a paywall is encountered. Explicitly authorize Zotero MCP identifier/PDF
+writes only when the live schema advertises them; then read the exact Zotero
+item back and compare DOI, PMID, title, and year. Write every mismatch to the
+verification discrepancy table and keep downstream review blocked until it is
+resolved. See [`docs/FULLTEXT_ACQUISITION.md`](../../docs/FULLTEXT_ACQUISITION.md).
+
 For search formulation, use a sensitivity-first PICOS strategy: require P
 and I for the default intervention question, omit C and O by default, and
 enable either optional block only with a protocol rationale. This is not an

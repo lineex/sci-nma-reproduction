@@ -1,0 +1,2 @@
+study_id,report_id,item_key,field,expected,observed,severity,status,reason,evidence_locator
+STUDY_ID,REPORT_ID,ZOTERO_ITEM_KEY,doi,EXPECTED_DOI,OBSERVED_DOI,high,open,Example only; replace with exact readback evidence,TOOL_NAME

@@ -12,14 +12,15 @@ protocol preflight.
 | Function | Primary | Fallback | Required behavior |
 |---|---|---|---|
 | Literature search | `cdp_builtin_browser` | `chrome_devtools` | Try the built-in CDP browser first, then the Chrome DevTools session. Reuse the authenticated session and retain the browser/session evidence used for each search. The optional DevTools endpoint is local-only and must use a dedicated non-default Chrome profile. |
-| Zotero full text | `zotero_mcp` using [`cookjohn/zotero-mcp`](https://github.com/cookjohn/zotero-mcp) | `zotero_local_read_only` | Discover the active MCP schema at runtime, use only advertised read capabilities, and fall back to the local SQLite/JSON bridge when the MCP endpoint is unavailable. |
+| Post-screen identifiers/full text | `metapub` → `scansci_pdf` → `zotero_mcp` | manual queue → `zotero_local_read_only` | Resolve a missing DOI with Metapub, download through the configured ScanSci PDF connector, pause for user CARSI/WebVPN authentication at a paywall, explicitly authorize Zotero MCP import/attachment writes, then read the exact item back and emit a discrepancy table. |
+| Zotero full-text readback | `zotero_mcp` using [`cookjohn/zotero-mcp`](https://github.com/cookjohn/zotero-mcp) | `zotero_local_read_only` | Discover the active MCP schema at runtime, use advertised read capabilities, and fall back to the local SQLite/JSON bridge when the MCP endpoint is unavailable. |
 | Statistical synthesis | `R` | An explicitly documented validated engine | New projects start with R. Pairwise work defaults to `meta`/`metafor`, frequentist NMA to `netmeta`, and the environment is locked with `renv.lock`. Python is orchestration and QA only. |
 
 The fallback order is deterministic:
 
 ```text
 search:    cdp_builtin_browser -> chrome_devtools
-full_text: zotero_mcp -> zotero_local_read_only
+full_text: metapub -> scansci_pdf -> zotero_mcp(read/write with confirmation) -> manual queue -> zotero_local_read_only
 statistics: R (no silent Python production fallback)
 ```
 
@@ -68,28 +69,38 @@ statistics: R (no silent Python production fallback)
      separate hash-bound artifact referenced by path and SHA-256. Generated
      lines are marked planned until the exact-as-run history/export, totals,
      date/timezone, and peer review are attached.
-2. The Zotero MCP connection is the default full-text application path. Run
+2. After screening, build the acquisition queue with
+   `sci-nma-agent fulltext-acquire plan`. Resolve missing DOI values with the
+   optional Metapub connector, then call the configured ScanSci PDF connector
+   by DOI. Treat `carsi_user_action_required` as a user-visible institutional
+   login checkpoint, not a failed fact. Deduplicate by DOI and then PDF
+   SHA-256. Push identifiers/PDFs to Zotero only after explicit confirmation,
+   read the exact Zotero item back through MCP, and write
+   `verification/zotero_metadata_discrepancies.csv` for any DOI/PMID/title/year
+   mismatch. Downstream full-text review remains blocked while discrepancies
+   are open.
+3. The Zotero MCP connection is the default full-text readback path. Run
    `sci-nma-agent zotero-mcp-check` before collection export. The connected
    server's discovered tool schemas are authoritative. Preserve collection,
    item, attachment, raw-response, extracted-text, and locator hashes. If MCP
    is unavailable, record the connection state and use the read-only local
    adapter; do not claim that an MCP call succeeded.
-3. `sci-nma-agent init PROJECT` creates the default protocol and
+4. `sci-nma-agent init PROJECT` creates the default protocol and
    `verification/analysis_manifest.json`. Before synthesis, replace the R
    placeholders with the exact R version, package versions, `renv.lock`,
    script paths, seed/deterministic-analysis rationale, and output hashes.
-4. `sci-nma-agent init PROJECT` also creates the form-first reporting package
+5. `sci-nma-agent init PROJECT` also creates the form-first reporting package
    under `reporting/`: line-by-line search supplement, supplementary-materials
    manifest, submission checklist, manuscript/cover-letter starters,
    reproducibility README, and risk-of-bias/synthesis/certainty tables.
    Reporting release requires required artifacts to be present, hashed,
    source-located, and independently approved.
-5. A project may explicitly select Stata or another validated production
+6. A project may explicitly select Stata or another validated production
    engine when the protocol records the rationale, exact versions, runtime
    lock, and independent verification. This does not change the new-project
    default and does not make the bundled Python calculators production
    estimators.
-6. Publication reproduction and calibration are separate routes. They follow
+7. Publication reproduction and calibration are separate routes. They follow
    the source study's browser, Zotero, and statistical software settings when
    fidelity to the published analysis is the objective; they do not inherit
    these new-review defaults automatically.
@@ -110,7 +121,12 @@ The initialized protocol contains the following machine-readable defaults:
       "primary_connector": "zotero_mcp",
       "primary_server": "cookjohn/zotero-mcp",
       "fallback_connector": "zotero_local_read_only",
-      "fallback_order": ["zotero_mcp", "zotero_local_read_only"]
+      "fallback_order": ["zotero_mcp", "zotero_local_read_only"],
+      "doi_resolver": "metapub_optional",
+      "pdf_provider": "scansci_pdf",
+      "institutional_access": "carsi_user_action_checkpoint",
+      "zotero_write_policy": "explicit_confirmation_then_readback",
+      "deduplication_policy": "doi_then_pdf_sha256"
     },
     "statistics": {
       "primary_engine": "R",

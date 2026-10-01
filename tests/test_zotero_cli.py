@@ -132,3 +132,15 @@ def test_zotero_mcp_export_reports_mcp_tool_error_separately(monkeypatch, tmp_pa
     assert exc_info.value.code == 1
     assert "Zotero MCP server tool error" in output.getvalue()
     assert "server failure" in output.getvalue()
+
+
+
+def test_fulltext_acquire_plan_cli_writes_queue(tmp_path, monkeypatch, capsys):
+    manifest = tmp_path / "retrieval.json"
+    manifest.write_text(json.dumps({"schema_version": 1, "records": [{"study_id": "S1", "report_id": "R1", "pmid": "12345678"}]}), encoding="utf-8")
+    output = tmp_path / "queue.json"
+    monkeypatch.setattr(cli.sys, "argv", ["sci-nma-agent", "fulltext-acquire", "plan", "--manifest", str(manifest), "--output", str(output)])
+    cli.main()
+    result = json.loads(capsys.readouterr().out)
+    assert result["record_count"] == 1
+    assert json.loads(output.read_text(encoding="utf-8"))["records"][0]["download"]["status"] == "manual_doi_or_identifier_required"
