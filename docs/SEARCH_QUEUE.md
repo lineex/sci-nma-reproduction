@@ -20,13 +20,13 @@ history, an export, hashes for both, and a completed queue record.
 
 ## Queue schema
 
-`search/browser_search_queue.json` uses schema version `1` and contains:
+`search/browser_search_queue.json` uses schema version `2` and contains:
 
 - `execution_policy`: `strict_serial`, one active task, preferred
   `cdp_builtin_browser`, then `chrome_devtools`;
 - `tasks`: one ordered task per database (`ordinal`, `task_id`, database,
-  strategy/execution-artifact paths and hashes, browser route, session,
-  status, evidence);
+  strategy/execution-artifact paths and hashes, a line plan, browser route,
+  session, status, and evidence);
 - `events`: append-only lifecycle records for queue creation, start, pause,
   resume, failure, and completion.
 
@@ -114,6 +114,18 @@ sci-nma-agent search-queue fail `
 
 ## Evidence required for completion
 
+Each native strategy line is executed for a count only. Component-line
+execution must not export citation details or record-level data. The final
+combination line is executed separately and is the only step that exports the
+full records used for screening. The evidence therefore has two distinct
+parts:
+
+1. `component_line_counts`: one count and history/query locator per concept,
+   filter, or limit line; no export path, record IDs, or detailed records are
+   allowed in these entries.
+2. `final_search_total` plus `final_records_exported`, with a complete
+   final-combination export and history artifact.
+
 The executor creates an evidence JSON inside the project and then calls
 `complete`. A compact example is:
 
@@ -123,22 +135,33 @@ The executor creates an evidence JSON inside the project and then calls
   "browser_route": "cdp_builtin_browser",
   "strategy_sha256": "STRATEGY_SHA256",
   "execution_query_sha256": "EXECUTION_QUERY_SHA256",
-  "reported_hit_count": 1234,
-  "export_path": "raw_exports/pubmed/run-0001.ris",
-  "export_sha256": "EXPORT_SHA256",
-  "history_path": "search/PubMed_history.json",
-  "history_sha256": "HISTORY_SHA256",
+  "component_line_counts": [
+    {"line_number": 1, "result_count": 8123, "history_or_query_locator": "history:#1"},
+    {"line_number": 2, "result_count": 4567, "history_or_query_locator": "history:#2"}
+  ],
+  "final_combination_line_number": 3,
+  "final_combination_locator": "history:#3",
+  "final_search_total": 1234,
+  "final_records_exported": 1234,
+  "final_export_scope": "final_combination_only",
+  "final_record_detail_level": "full",
+  "final_export_complete": true,
+  "final_export_path": "raw_exports/pubmed/run-0001.ris",
+  "final_export_sha256": "EXPORT_SHA256",
+  "final_history_path": "search/PubMed_history.json",
+  "final_history_sha256": "HISTORY_SHA256",
   "search_date": "2026-10-07",
-  "timezone": "Asia/Shanghai",
-  "history_or_query_locator": "history:#7"
+  "timezone": "Asia/Shanghai"
 }
 ```
 
 The queue validates that the database and browser route match the claimed
-task, strategy and execution hashes match the queued artifacts, both evidence
-files exist inside the project, and the recorded file hashes are current.
-`reported_hit_count` is a database-reported count, not a deduplicated corpus
-count.
+task, strategy and execution hashes match the queued artifacts, every component
+line has a count-only record, and the final export/history files exist inside
+the project with current hashes. `final_search_total` is the database-reported
+count for the final combined query; `final_records_exported` describes the
+full-detail records actually written to the final export. Component counts are
+not corpus records and must never be ingested as screening citations.
 
 Complete the task:
 
@@ -157,7 +180,9 @@ sci-nma-agent search-queue complete `
 2. Use one browser tab/session for that task; do not open a second database
    search while it is `running`.
 3. Keep native line-by-line strategy artifacts separate from the private
-   collapsed execution artifact. The supplement displays native syntax and
+   collapsed execution artifact. Execute each native component line for its
+   count only. Execute the final combination line to obtain the final total
+   and export full record details. The supplement displays native syntax and
    exact-as-run history/export references, not the collapsed query by default.
 4. A verification, SSO, CARSI/WebVPN, or recoverable connector error pauses the
    current task. Preserve the checkpoint and resume the same task after the

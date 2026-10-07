@@ -135,6 +135,9 @@ def test_native_strategy_contains_database_specific_syntax_and_separate_executio
     assert "TITLE-ABS-KEY" in plan["databases"]["Scopus"]["native_lines"][0]["native_syntax"]
     for item in plan["databases"].values():
         assert item["appendix_policy"]["display_final_execution_query"] is False
+        assert item["appendix_policy"]["component_execution"] == "count_only"
+        assert item["appendix_policy"]["final_combination_execution"] == "export_full_records"
+        assert item["appendix_policy"]["final_export_scope"] == "final_combination_only"
         assert item["appendix_policy"]["strategy_status"] == "planned_generated"
         assert item["appendix_policy"]["exact_run_record_required"] is True
         assert item["appendix_policy"]["execution_artifact"].endswith("_search.txt")
@@ -157,6 +160,9 @@ def test_write_strategy_artifacts_keeps_collapsed_query_out_of_appendix_json(tmp
     for database, strategy_path in paths.items():
         payload = json.loads((tmp_path / "search_strategies" / f"{database}_native_strategy.json").read_text(encoding="utf-8"))
         assert payload["display_final_execution_query"] is False
+        assert payload["component_execution"] == "count_only"
+        assert payload["final_combination_execution"] == "export_full_records"
+        assert payload["final_export_scope"] == "final_combination_only"
         assert "execution_query" not in payload
         assert payload["strategy_status"] == "planned_generated"
         assert payload["exact_run_record_required"] is True

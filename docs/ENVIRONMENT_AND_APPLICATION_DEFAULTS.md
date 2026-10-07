@@ -36,6 +36,10 @@ statistics: R (no silent Python production fallback)
      history/export evidence before claiming another database. A verification,
      SSO, or recoverable connector error pauses the current task and resumes it
      explicitly; it does not start a second browser task.
+   - Execute native concept/filter/limit lines for counts only. Do not export
+     or ingest record-level details from component lines. Execute the final
+     combination line separately; its final count and complete detailed export
+     are the only citation records passed to deduplication and screening.
    - The built-in browser is the preferred route and does not require exposing a
      user's normal Chrome profile through a debugging port.
    - The optional Chrome DevTools fallback must bind to `127.0.0.1`,

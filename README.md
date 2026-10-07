@@ -56,6 +56,9 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
 7. **Strictly serial browser search execution**:
    - `search/browser_search_queue.json` claims one database at a time
      (`max_active_tasks=1`, `parallel_browser_calls=false`).
+   - Component/native lines are executed for result counts only; the final
+     combination line supplies the authoritative total and the full-detail
+     citation export used for screening.
    - Verification, SSO, and recoverable browser errors pause the current task;
      the same task resumes after the checkpoint with its history/export evidence.
    - The stage ledger revalidates the queue and all evidence hashes before

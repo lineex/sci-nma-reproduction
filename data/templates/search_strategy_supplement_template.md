@@ -76,6 +76,13 @@ preserved as a separate, hash-bound execution artifact for audit and reruns.
 | … | … | … | … | … | … | … | … | … | … |
 | set reference | `combination` | `ALL` | `[INTERFACE SET SYNTAX]` | `[BLOCK REFERENCES]` | `[BLOCK REFERENCES]` | `[e.g., #1 AND #2 AND #3; do not paste collapsed private query]` | `[N]` | `yes` | `[HISTORY/SCREENSHOT]` |
 
+For execution, rows whose line type is `concept`, `filter`, or `limit` record
+**counts only**. Their rows must not contain citation exports, record IDs, or
+record-level details. The `combination` row is the authoritative final search:
+record its final total and attach the complete export containing detailed
+citation records. `records_exported`, `export_file`, and `export_sha256` refer
+only to this final combination, not to component lines.
+
 ## Release rules
 
 1. The CSV, this rendered appendix, raw history/export files, and PRISMA-S

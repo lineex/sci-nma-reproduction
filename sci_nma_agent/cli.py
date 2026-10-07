@@ -235,7 +235,10 @@ def main():
 
     search_queue_complete = search_queue_actions.add_parser(
         "complete",
-        help="Complete the active task after validating browser history/export evidence",
+        help=(
+            "Complete the active task after validating component counts and "
+            "the final-combination full-record export"
+        ),
     )
     search_queue_complete.add_argument("--queue", required=True)
     search_queue_complete.add_argument("--task-id", required=True)

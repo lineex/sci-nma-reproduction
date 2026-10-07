@@ -2,9 +2,10 @@
 
 The queue is deliberately independent of a particular browser connector.  A
 browser executor claims exactly one database task, runs it in the configured
-authenticated browser session, writes a hash-bound evidence JSON, and then
-completes or pauses that task.  A second task cannot be started while one task
-is active.
+authenticated browser session, records counts for each component line,
+exports full records only for the final combination, writes a hash-bound
+evidence JSON, and then completes or pauses that task.  A second task cannot
+be started while one task is active.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
 
-QUEUE_SCHEMA_VERSION = 1
+QUEUE_SCHEMA_VERSION = 2
 TASK_STATES = {"pending", "running", "paused", "completed", "failed"}
 ACTIVE_STATES = {"running"}
 TERMINAL_STATES = {"completed"}
@@ -174,6 +175,64 @@ def _validate_queue(queue: Mapping[str, Any]) -> None:
         database = str(task.get("database", "")).strip()
         if not database:
             raise SearchQueueError(f"tasks[{index}].database is required")
+        expected_contract = {
+            "component_lines": "count_only",
+            "final_combination": "export_full_records",
+            "final_export_scope": "final_combination_only",
+        }
+        if task.get("execution_contract") != expected_contract:
+            raise SearchQueueError(
+                f"tasks[{index}].execution_contract must require component counts "
+                "and final-combination full-record export"
+            )
+        line_plan = task.get("line_plan")
+        if not isinstance(line_plan, list) or not line_plan:
+            raise SearchQueueError(f"tasks[{index}].line_plan is required")
+        line_numbers = []
+        combination_numbers = []
+        for line in line_plan:
+            if not isinstance(line, Mapping):
+                raise SearchQueueError(f"tasks[{index}].line_plan entries must be objects")
+            number = line.get("line_number")
+            line_type = line.get("line_type")
+            if not isinstance(number, int) or isinstance(number, bool) or number < 1:
+                raise SearchQueueError(
+                    f"tasks[{index}].line_plan.line_number must be a positive integer"
+                )
+            if line_type not in {"concept", "filter", "limit", "combination"}:
+                raise SearchQueueError(
+                    f"tasks[{index}].line_plan.line_type is invalid"
+                )
+            expected_role = (
+                "final_combination"
+                if line_type == "combination"
+                else "component_count_only"
+            )
+            if line.get("result_role") != expected_role:
+                raise SearchQueueError(
+                    f"tasks[{index}].line_plan result_role is inconsistent"
+                )
+            line_numbers.append(number)
+            if line_type == "combination":
+                combination_numbers.append(number)
+        if sorted(line_numbers) != list(range(1, len(line_plan) + 1)):
+            raise SearchQueueError(
+                f"tasks[{index}].line_plan numbers must be contiguous and ordered"
+            )
+        expected_component_numbers = [
+            number for number in line_numbers if number not in combination_numbers
+        ]
+        if task.get("component_line_numbers") != expected_component_numbers:
+            raise SearchQueueError(
+                f"tasks[{index}].component_line_numbers do not match line_plan"
+            )
+        if (
+            len(combination_numbers) != 1
+            or task.get("final_combination_line_number") != combination_numbers[0]
+        ):
+            raise SearchQueueError(
+                f"tasks[{index}].final_combination_line_number is invalid"
+            )
         if task.get("status") == "running":
             if not str(task.get("executor_session", "")).strip():
                 raise SearchQueueError(
@@ -293,6 +352,35 @@ def create_search_queue(
                 "database": database,
                 "platform": database,
                 "interface": "browser",
+                "execution_contract": {
+                    "component_lines": "count_only",
+                    "final_combination": "export_full_records",
+                    "final_export_scope": "final_combination_only",
+                },
+                "line_plan": [
+                    {
+                        "line_number": line["line_number"],
+                        "line_type": line["line_type"],
+                        "concept_block": line.get("concept_block"),
+                        "native_syntax": line["native_syntax"],
+                        "result_role": (
+                            "final_combination"
+                            if line["line_type"] == "combination"
+                            else "component_count_only"
+                        ),
+                    }
+                    for line in item["native_lines"]
+                ],
+                "component_line_numbers": [
+                    line["line_number"]
+                    for line in item["native_lines"]
+                    if line["line_type"] != "combination"
+                ],
+                "final_combination_line_number": next(
+                    line["line_number"]
+                    for line in item["native_lines"]
+                    if line["line_type"] == "combination"
+                ),
                 "status": "pending",
                 "strategy_artifact": native_path.relative_to(project).as_posix(),
                 "execution_artifact": execution_path.relative_to(project).as_posix(),
@@ -623,27 +711,123 @@ def _validate_evidence(
             raise SearchQueueError(
                 f"search evidence {field} must match the queued strategy artifact"
             )
-    reported = evidence.get("reported_hit_count")
-    if not isinstance(reported, int) or isinstance(reported, bool) or reported < 0:
-        raise SearchQueueError("reported_hit_count must be a non-negative integer")
-    for field in ("export_path", "history_path"):
-        if not _is_safe_relative_path(evidence.get(field)):
+    if evidence.get("final_export_scope") != "final_combination_only":
+        raise SearchQueueError(
+            "final_export_scope must be final_combination_only; component lines "
+            "must not export detailed records"
+        )
+    if evidence.get("final_record_detail_level") != "full":
+        raise SearchQueueError(
+            "final_record_detail_level must be full for the final combination export"
+        )
+    if evidence.get("final_export_complete") is not True:
+        raise SearchQueueError(
+            "final_export_complete must be true before the search task can complete"
+        )
+
+    line_counts = evidence.get("component_line_counts")
+    if not isinstance(line_counts, list):
+        raise SearchQueueError("component_line_counts must be a list")
+    expected_line_numbers = list(task.get("component_line_numbers", []))
+    observed_line_numbers = []
+    for index, line in enumerate(line_counts):
+        if not isinstance(line, Mapping):
             raise SearchQueueError(
-                f"search evidence {field} must be a project-relative path"
+                f"component_line_counts[{index}] must be an object"
             )
-        path = _project_file(project_dir, evidence[field])
+        number = line.get("line_number")
+        if number in observed_line_numbers:
+            raise SearchQueueError(
+                f"component_line_counts contains duplicate line {number}"
+            )
+        if number not in expected_line_numbers:
+            raise SearchQueueError(
+                f"component_line_counts contains non-component line {number}"
+            )
+        count = line.get("result_count")
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            raise SearchQueueError(
+                f"component_line_counts[{index}].result_count must be non-negative"
+            )
+        if not str(line.get("history_or_query_locator", "")).strip():
+            raise SearchQueueError(
+                f"component_line_counts[{index}].history_or_query_locator is required"
+            )
+        forbidden = {
+            "export_path",
+            "export_sha256",
+            "records",
+            "record_ids",
+            "records_exported",
+            "detail_path",
+            "detail_sha256",
+        }
+        leaked = sorted(forbidden.intersection(line))
+        if leaked:
+            raise SearchQueueError(
+                f"component line {number} contains detailed-record fields: {leaked}"
+            )
+        observed_line_numbers.append(number)
+    if observed_line_numbers != expected_line_numbers:
+        raise SearchQueueError(
+            "component_line_counts must contain every component line exactly once "
+            "in strategy order"
+        )
+
+    final_total = evidence.get("final_search_total")
+    if not isinstance(final_total, int) or isinstance(final_total, bool) or final_total < 0:
+        raise SearchQueueError("final_search_total must be a non-negative integer")
+    final_exported = evidence.get("final_records_exported")
+    if (
+        not isinstance(final_exported, int)
+        or isinstance(final_exported, bool)
+        or final_exported < 0
+    ):
+        raise SearchQueueError(
+            "final_records_exported must be a non-negative integer"
+        )
+    if final_exported != final_total:
+        raise SearchQueueError(
+            "final_records_exported must equal final_search_total for a complete "
+            "final-combination export"
+        )
+    for path_field, hash_field in (
+        ("final_export_path", "final_export_sha256"),
+        ("final_history_path", "final_history_sha256"),
+    ):
+        if not _is_safe_relative_path(evidence.get(path_field)):
+            raise SearchQueueError(
+                f"search evidence {path_field} must be a project-relative path"
+            )
+        path = _project_file(project_dir, evidence[path_field])
         if not path.is_file():
-            raise SearchQueueError(f"search evidence file is missing: {evidence[field]}")
-        digest = file_sha256(path)
-        hash_field = "export_sha256" if field == "export_path" else "history_sha256"
-        if str(evidence.get(hash_field, "")).casefold() != digest:
             raise SearchQueueError(
-                f"{hash_field} does not match {field}"
+                f"search evidence file is missing: {evidence[path_field]}"
             )
-    for field in ("search_date", "timezone", "history_or_query_locator"):
+        digest = file_sha256(path)
+        if str(evidence.get(hash_field, "")).casefold() != digest:
+            raise SearchQueueError(f"{hash_field} does not match {path_field}")
+    if (
+        not str(evidence.get("final_combination_locator", "")).strip()
+        or evidence.get("final_combination_line_number")
+        != task.get("final_combination_line_number")
+    ):
+        raise SearchQueueError(
+            "final_combination_locator and final_combination_line_number are required"
+        )
+    for field in ("search_date", "timezone"):
         if not str(evidence.get(field, "")).strip():
             raise SearchQueueError(f"search evidence {field} is required")
-    return dict(evidence)
+    checked = dict(evidence)
+    # Retain the old names as read-only aliases for downstream consumers while
+    # making the final-combination semantics explicit and unambiguous.
+    checked["reported_hit_count"] = final_total
+    checked["export_path"] = checked["final_export_path"]
+    checked["export_sha256"] = checked["final_export_sha256"]
+    checked["history_path"] = checked["final_history_path"]
+    checked["history_sha256"] = checked["final_history_sha256"]
+    checked["history_or_query_locator"] = checked["final_combination_locator"]
+    return checked
 
 
 def complete_search_task(
@@ -673,9 +857,10 @@ def complete_search_task(
             actor=actor,
             session=session,
             details={
-                "reported_hit_count": checked["reported_hit_count"],
-                "export_path": checked["export_path"],
-                "history_path": checked["history_path"],
+                "final_search_total": checked["final_search_total"],
+                "final_records_exported": checked["final_records_exported"],
+                "final_export_path": checked["final_export_path"],
+                "final_history_path": checked["final_history_path"],
             },
         )
         return deepcopy(task)

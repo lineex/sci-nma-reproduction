@@ -49,14 +49,27 @@ def _evidence(project: Path, task: dict, route: str = "cdp_builtin_browser"):
         "browser_route": route,
         "strategy_sha256": task["strategy_sha256"],
         "execution_query_sha256": task["execution_query_sha256"],
-        "reported_hit_count": 1,
-        "export_path": export.relative_to(project).as_posix(),
-        "export_sha256": file_sha256(export),
-        "history_path": history.relative_to(project).as_posix(),
-        "history_sha256": file_sha256(history),
+        "component_line_counts": [
+            {
+                "line_number": line_number,
+                "result_count": 1,
+                "history_or_query_locator": f"history:#{line_number}",
+            }
+            for line_number in task["component_line_numbers"]
+        ],
+        "final_search_total": 1,
+        "final_combination_line_number": task["final_combination_line_number"],
+        "final_combination_locator": "history:#7",
+        "final_export_scope": "final_combination_only",
+        "final_record_detail_level": "full",
+        "final_export_complete": True,
+        "final_records_exported": 1,
+        "final_export_path": export.relative_to(project).as_posix(),
+        "final_export_sha256": file_sha256(export),
+        "final_history_path": history.relative_to(project).as_posix(),
+        "final_history_sha256": file_sha256(history),
         "search_date": "2026-10-07",
         "timezone": "Asia/Shanghai",
-        "history_or_query_locator": "history:#2",
     }
 
 
@@ -70,6 +83,20 @@ def test_search_queue_is_strictly_serial_and_hash_bound(tmp_path):
     assert queue["execution_policy"]["max_active_tasks"] == 1
     assert queue["execution_policy"]["parallel_browser_calls"] is False
     assert len(queue["tasks"]) == 5
+    assert queue["schema_version"] == 2
+    assert queue["tasks"][0]["execution_contract"] == {
+        "component_lines": "count_only",
+        "final_combination": "export_full_records",
+        "final_export_scope": "final_combination_only",
+    }
+    assert all(
+        line["result_role"] == (
+            "final_combination"
+            if line["line_type"] == "combination"
+            else "component_count_only"
+        )
+        for line in queue["tasks"][0]["line_plan"]
+    )
 
     first = start_search_task(
         queue_path,
@@ -146,6 +173,48 @@ def test_evidence_must_match_claimed_route_and_strategy(tmp_path):
     evidence = _evidence(tmp_path, first)
     evidence["browser_route"] = "chrome_devtools"
     with pytest.raises(SearchQueueError, match="does not match the claimed route"):
+        complete_search_task(
+            queue_path,
+            task_id=first["task_id"],
+            actor="search-agent",
+            session="session-1",
+            evidence=evidence,
+        )
+
+
+def test_component_lines_are_count_only_and_final_export_is_full_detail(tmp_path):
+    queue_path = tmp_path / "queue.json"
+    create_search_queue(pico=_pico(), project_dir=tmp_path, queue_path=queue_path)
+    first = start_search_task(
+        queue_path,
+        actor="search-agent",
+        session="session-1",
+    )
+    evidence = _evidence(tmp_path, first)
+    evidence["component_line_counts"][0]["export_path"] = "raw_exports/PubMed/line-1.ris"
+    with pytest.raises(SearchQueueError, match="detailed-record fields"):
+        complete_search_task(
+            queue_path,
+            task_id=first["task_id"],
+            actor="search-agent",
+            session="session-1",
+            evidence=evidence,
+        )
+
+    evidence = _evidence(tmp_path, first)
+    evidence["final_export_scope"] = "component_line"
+    with pytest.raises(SearchQueueError, match="final_export_scope"):
+        complete_search_task(
+            queue_path,
+            task_id=first["task_id"],
+            actor="search-agent",
+            session="session-1",
+            evidence=evidence,
+        )
+
+    evidence = _evidence(tmp_path, first)
+    evidence["final_records_exported"] = 0
+    with pytest.raises(SearchQueueError, match="must equal final_search_total"):
         complete_search_task(
             queue_path,
             task_id=first["task_id"],
