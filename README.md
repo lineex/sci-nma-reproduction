@@ -53,6 +53,13 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
      and certainty supplements.
    - Structured manuscript, cover letter, reproducibility README, PRISMA
      checklists, and hash-bound submission inventory.
+7. **Strictly serial browser search execution**:
+   - `search/browser_search_queue.json` claims one database at a time
+     (`max_active_tasks=1`, `parallel_browser_calls=false`).
+   - Verification, SSO, and recoverable browser errors pause the current task;
+     the same task resumes after the checkpoint with its history/export evidence.
+   - The stage ledger revalidates the queue and all evidence hashes before
+     search-stage release. See [`docs/SEARCH_QUEUE.md`](docs/SEARCH_QUEUE.md).
 
 ---
 
@@ -184,6 +191,23 @@ sci-nma-agent audit examples/case_study_corticosteroids_nma
 ```bash
 sci-nma-agent search --pico examples/case_study_corticosteroids_nma/config_pico.json
 ```
+
+#### Run Browser Searches in Strict Serial Order
+```bash
+sci-nma-agent search-queue create \
+  --pico PROJECT/config_pico.json \
+  --project PROJECT \
+  --output PROJECT/search/browser_search_queue.json
+sci-nma-agent search-queue start \
+  --queue PROJECT/search/browser_search_queue.json \
+  --actor search-agent \
+  --session SEARCH_SESSION_001 \
+  --browser-route cdp_builtin_browser
+```
+
+Complete each task only after its exact-as-run database history and export are
+written and hash-bound; then claim the next ordinal. Detailed pause/resume and
+evidence fields are documented in [`docs/SEARCH_QUEUE.md`](docs/SEARCH_QUEUE.md).
 
 The search generator uses a sensitivity-first PICOS policy for intervention
 reviews: **P (population) and I (intervention/exposure) are the default

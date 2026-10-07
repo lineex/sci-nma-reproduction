@@ -11,7 +11,7 @@ protocol preflight.
 
 | Function | Primary | Fallback | Required behavior |
 |---|---|---|---|
-| Literature search | `cdp_builtin_browser` | `chrome_devtools` | Try the built-in CDP browser first, then the Chrome DevTools session. Reuse the authenticated session and retain the browser/session evidence used for each search. The optional DevTools endpoint is local-only and must use a dedicated non-default Chrome profile. |
+| Literature search | `cdp_builtin_browser` | `chrome_devtools` | Try the built-in CDP browser first, then the Chrome DevTools session. Execute databases through `search/browser_search_queue.json` in strict ordinal order, with one active browser task and no parallel browser calls. Reuse the authenticated session and retain the browser/session evidence used for each search. The optional DevTools endpoint is local-only and must use a dedicated non-default Chrome profile. |
 | Post-screen identifiers/full text | `metapub` → `scansci_pdf` → `zotero_mcp` | manual queue → `zotero_local_read_only` | Resolve a missing DOI with Metapub, download through the configured ScanSci PDF connector, pause for user CARSI/WebVPN authentication at a paywall, explicitly authorize Zotero MCP import/attachment writes, then read the exact item back and emit a discrepancy table. |
 | Zotero full-text readback | `zotero_mcp` using [`cookjohn/zotero-mcp`](https://github.com/cookjohn/zotero-mcp) | `zotero_local_read_only` | Discover the active MCP schema at runtime, use advertised read capabilities, and fall back to the local SQLite/JSON bridge when the MCP endpoint is unavailable. |
 | Statistical synthesis | `R` | An explicitly documented validated engine | New projects start with R. Pairwise work defaults to `meta`/`metafor`, frequentist NMA to `netmeta`, and the environment is locked with `renv.lock`. Python is orchestration and QA only. |
@@ -31,6 +31,11 @@ statistics: R (no silent Python production fallback)
    export or independent checking only when the approved protocol records that
    route; an API response does not silently replace the required browser
    session evidence.
+   - Browser database calls are serialized by the project search queue. Claim
+     only the next ordinal, keep `max_active_tasks=1`, and complete its
+     history/export evidence before claiming another database. A verification,
+     SSO, or recoverable connector error pauses the current task and resumes it
+     explicitly; it does not start a second browser task.
    - The built-in browser is the preferred route and does not require exposing a
      user's normal Chrome profile through a debugging port.
    - The optional Chrome DevTools fallback must bind to `127.0.0.1`,
@@ -115,7 +120,11 @@ The initialized protocol contains the following machine-readable defaults:
     "search": {
       "primary_browser": "cdp_builtin_browser",
       "fallback_browser": "chrome_devtools",
-      "fallback_order": ["cdp_builtin_browser", "chrome_devtools"]
+      "fallback_order": ["cdp_builtin_browser", "chrome_devtools"],
+      "execution_mode": "strict_serial_queue",
+      "max_active_tasks": 1,
+      "parallel_browser_calls": false,
+      "queue_path": "search/browser_search_queue.json"
     },
     "full_text": {
       "primary_connector": "zotero_mcp",

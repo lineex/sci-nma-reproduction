@@ -51,6 +51,17 @@ from .workflow.fulltext_acquisition import (
     write_discrepancy_table,
     write_json,
 )
+from .workflow.search_queue import (
+    SearchQueueError,
+    complete_search_task,
+    create_search_queue,
+    fail_search_task,
+    load_search_queue,
+    pause_search_task,
+    queue_status,
+    resume_search_task,
+    start_search_task,
+)
 
 
 def _write_evidence_snapshot(evidence):
@@ -160,6 +171,80 @@ def main():
         "--show-execution-query",
         action="store_true",
         help="Also print the private one-line execution query (hidden by default)",
+    )
+
+    # Strictly serial browser-search queue
+    search_queue_parser = subparsers.add_parser(
+        "search-queue",
+        help="Create and advance a strictly serial browser search queue",
+    )
+    search_queue_actions = search_queue_parser.add_subparsers(
+        dest="search_queue_action",
+        required=True,
+    )
+    search_queue_create = search_queue_actions.add_parser(
+        "create",
+        help="Create one ordered browser task per database from a PICO JSON",
+    )
+    search_queue_create.add_argument("--pico", required=True)
+    search_queue_create.add_argument("--project", required=True)
+    search_queue_create.add_argument("--output")
+    search_queue_create.add_argument("--overwrite", action="store_true")
+
+    search_queue_status = search_queue_actions.add_parser(
+        "status",
+        help="Show queue state, active task, and next task",
+    )
+    search_queue_status.add_argument("--queue", required=True)
+
+    search_queue_start = search_queue_actions.add_parser(
+        "start",
+        help="Claim the next database task; only one task may run",
+    )
+    search_queue_start.add_argument("--queue", required=True)
+    search_queue_start.add_argument("--actor", required=True)
+    search_queue_start.add_argument("--session", required=True)
+    search_queue_start.add_argument(
+        "--browser-route",
+        choices=["cdp_builtin_browser", "chrome_devtools"],
+        default="cdp_builtin_browser",
+    )
+    search_queue_start.add_argument("--task-id")
+
+    search_queue_resume = search_queue_actions.add_parser(
+        "resume",
+        help="Return a paused/failed task to the pending queue",
+    )
+    search_queue_resume.add_argument("--queue", required=True)
+    search_queue_resume.add_argument("--task-id", required=True)
+    search_queue_resume.add_argument("--actor", required=True)
+    search_queue_resume.add_argument("--session", required=True)
+
+    for action, help_text in (
+        ("pause", "Pause the active task at a user-verification or recovery checkpoint"),
+        ("fail", "Mark the active task failed and retain its error evidence"),
+    ):
+        action_parser = search_queue_actions.add_parser(action, help=help_text)
+        action_parser.add_argument("--queue", required=True)
+        action_parser.add_argument("--task-id", required=True)
+        action_parser.add_argument("--actor", required=True)
+        action_parser.add_argument("--session", required=True)
+        action_parser.add_argument("--reason", required=True)
+        if action == "pause":
+            action_parser.add_argument("--checkpoint")
+
+    search_queue_complete = search_queue_actions.add_parser(
+        "complete",
+        help="Complete the active task after validating browser history/export evidence",
+    )
+    search_queue_complete.add_argument("--queue", required=True)
+    search_queue_complete.add_argument("--task-id", required=True)
+    search_queue_complete.add_argument("--actor", required=True)
+    search_queue_complete.add_argument("--session", required=True)
+    search_queue_complete.add_argument(
+        "--evidence",
+        required=True,
+        help="JSON evidence file containing exact-as-run history/export paths and hashes",
     )
 
     # Command: session-check
@@ -368,7 +453,7 @@ def main():
     if args.command == "init":
         p_dir = args.project_dir
         subdirs = [
-            "search_strategies", "data", "figures",
+            "search", "search_strategies", "data", "figures",
             "editable_files/vector_svg", "editable_files/vector_pdf", "editable_files/office_docs",
             "verification", "verification/reviews", "original_materials", "agents",
             "raw_exports/pubmed", "raw_exports/embase", "raw_exports/wos", "raw_exports/cochrane",
@@ -387,6 +472,8 @@ def main():
             "title_abstract_screening_manifest_template.json": "screening/title_abstract_screening_manifest.json",
             "full_text_retrieval_manifest_template.json": "screening/full_text_retrieval_manifest.json",
             "zotero_metadata_discrepancies_template.csv": "verification/zotero_metadata_discrepancies.csv",
+            "author_contact_log_template.csv": "verification/author_contact_log.csv",
+            "awaiting_classification_template.csv": "screening/awaiting_classification.csv",
             "full_text_screening_manifest_template.json": "screening/full_text_screening_manifest.json",
             "fact_status_manifest_template.json": "data/fact_status_manifest.json",
             "search_strategy_supplement_template.csv": "reporting/supplementary/search_strategy_supplement.csv",
@@ -868,6 +955,66 @@ def main():
                 )
             if args.show_execution_query:
                 print(f"  execution_query (private artifact): {item['execution_query']}")
+
+    elif args.command == "search-queue":
+        try:
+            if args.search_queue_action == "create":
+                with open(args.pico, "r", encoding="utf-8") as handle:
+                    pico = json.load(handle)
+                result = create_search_queue(
+                    pico=pico,
+                    project_dir=args.project,
+                    queue_path=args.output,
+                    overwrite=args.overwrite,
+                )
+            elif args.search_queue_action == "status":
+                result = queue_status(args.queue)
+            elif args.search_queue_action == "start":
+                result = start_search_task(
+                    args.queue,
+                    task_id=args.task_id,
+                    actor=args.actor,
+                    session=args.session,
+                    browser_route=args.browser_route,
+                )
+            elif args.search_queue_action == "resume":
+                result = resume_search_task(
+                    args.queue,
+                    task_id=args.task_id,
+                    actor=args.actor,
+                    session=args.session,
+                )
+            elif args.search_queue_action == "pause":
+                result = pause_search_task(
+                    args.queue,
+                    task_id=args.task_id,
+                    actor=args.actor,
+                    session=args.session,
+                    reason=args.reason,
+                    checkpoint=args.checkpoint,
+                )
+            elif args.search_queue_action == "fail":
+                result = fail_search_task(
+                    args.queue,
+                    task_id=args.task_id,
+                    actor=args.actor,
+                    session=args.session,
+                    reason=args.reason,
+                )
+            else:
+                with open(args.evidence, "r", encoding="utf-8") as handle:
+                    evidence = json.load(handle)
+                result = complete_search_task(
+                    args.queue,
+                    task_id=args.task_id,
+                    actor=args.actor,
+                    session=args.session,
+                    evidence=evidence,
+                )
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        except (SearchQueueError, OSError, ValueError, json.JSONDecodeError) as exc:
+            print(f"Serial search queue operation failed: {exc}")
+            sys.exit(1)
 
     elif args.command == "ingest":
         p_dir = args.project_dir

@@ -1,0 +1,2 @@
+study_id,report_id,reason,next_action,owner,created_at,next_review_at,source_locator,status,resolution_at,resolution_note
+STUDY_ID,REPORT_ID,"Paywall, inaccessible attachment, or unresolved eligibility","Complete CARSI/manual acquisition and reassess",OWNER_ID,YYYY-MM-DD,YYYY-MM-DD,SOURCE_LOCATOR,open,,""

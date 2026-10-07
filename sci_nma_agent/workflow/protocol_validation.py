@@ -390,6 +390,10 @@ def _validate_execution_defaults(protocol: Dict[str, Any], errors: List[str]) ->
             "primary_browser": "cdp_builtin_browser",
             "fallback_browser": "chrome_devtools",
             "fallback_order": ["cdp_builtin_browser", "chrome_devtools"],
+            "execution_mode": "strict_serial_queue",
+            "max_active_tasks": 1,
+            "parallel_browser_calls": False,
+            "queue_path": "search/browser_search_queue.json",
             "selection_policy": "try_primary_then_fallback",
             "session_policy": "reuse_authenticated_session",
         }

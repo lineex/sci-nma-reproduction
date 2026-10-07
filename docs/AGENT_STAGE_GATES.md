@@ -42,6 +42,13 @@ chapter-level edition/update and access provenance are validated before review,
 including a conditional NMA assumptions section. Blank templates are
 intentionally not submit-ready.
 
+The `search` stage should submit the completed
+`search/browser_search_queue.json` whenever browser automation is used. The
+ledger revalidates its strict-serial policy, strategy and execution hashes,
+history/export hashes, and task completion. A queue with unresolved tasks does
+not release the search stage. Older projects may retain a legacy search
+artifact set until their next search rerun.
+
 The `deduplication` stage must submit one validated `study_report_map.json`;
 `title_abstract_screening` must submit one complete dual-decision manifest;
 `fulltext_retrieval` must submit one manifest whose rows exactly match the

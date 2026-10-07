@@ -28,6 +28,7 @@ from .manual_fulltext_queue import (
     build_manual_fulltext_queue,
     validate_manual_fulltext_queue_file,
 )
+from .search_queue import validate_search_queue_file
 
 
 STAGES = [
@@ -461,7 +462,32 @@ class AgentStageLedger:
             artifact_manifest = [self._artifact_record(path) for path in artifact_paths]
             if not artifact_manifest:
                 raise StageLedgerError("At least one durable stage artifact is required")
-            if stage_id == "protocol":
+            if stage_id == "search":
+                # New browser-driven searches should submit the serial queue
+                # itself.  The conditional keeps older projects that predate
+                # the queue compatible, while any submitted queue is checked
+                # as a release-bound artifact.
+                queue_paths = [
+                    self.project_dir / record["path"]
+                    for record in artifact_manifest
+                    if Path(record["path"]).name == "browser_search_queue.json"
+                ]
+                if queue_paths:
+                    if len(queue_paths) != 1:
+                        raise StageLedgerError(
+                            "Search stage must submit at most one browser_search_queue.json"
+                        )
+                    queue_errors = validate_search_queue_file(
+                        queue_paths[0],
+                        project_dir=self.project_dir,
+                        require_completed=True,
+                    )
+                    if queue_errors:
+                        raise StageLedgerError(
+                            "Serial browser search queue validation failed: "
+                            + "; ".join(queue_errors)
+                        )
+            elif stage_id == "protocol":
                 protocol_paths = [
                     self.project_dir / record["path"]
                     for record in artifact_manifest
@@ -918,6 +944,8 @@ class AgentStageLedger:
     def _assert_all_recorded_evidence_current(self, ledger: Dict[str, Any]) -> None:
         for stage_id, stage in ledger["stages"].items():
             self._assert_manifest_current(stage.get("artifact_manifest", []), stage_id, "stage artifact")
+            if stage_id == "search" and stage.get("artifact_manifest"):
+                self._assert_search_queue_current(stage)
             if stage_id == "synthesis" and stage.get("artifact_manifest"):
                 self._assert_synthesis_manifest_current(stage)
             if stage_id == "reporting" and stage.get("artifact_manifest"):
@@ -959,10 +987,37 @@ class AgentStageLedger:
         self._assert_manifest_current(stage.get("artifact_manifest", []), stage_id, "approved artifact")
         for review in stage.get("reviews", []):
             self._assert_manifest_current([review["report"]], stage_id, "review report")
+        if stage_id == "search" and stage.get("artifact_manifest"):
+            self._assert_search_queue_current(stage)
         if stage_id == "synthesis" and stage.get("artifact_manifest"):
             self._assert_synthesis_manifest_current(stage)
         if stage_id == "reporting" and stage.get("artifact_manifest"):
             self._assert_reporting_manifest_current(stage)
+
+    def _assert_search_queue_current(self, stage: Dict[str, Any]) -> None:
+        """Revalidate serial browser-search evidence after submission."""
+        queue_records = [
+            record
+            for record in stage.get("artifact_manifest", [])
+            if Path(record.get("path", "")).name == "browser_search_queue.json"
+        ]
+        if not queue_records:
+            return
+        if len(queue_records) != 1:
+            raise StageLedgerError(
+                "Search stage must contain exactly one browser_search_queue.json"
+            )
+        queue_path = self.project_dir / queue_records[0]["path"]
+        errors = validate_search_queue_file(
+            queue_path,
+            project_dir=self.project_dir,
+            require_completed=True,
+        )
+        if errors:
+            raise StageLedgerError(
+                "Serial browser search queue evidence is stale or inconsistent: "
+                + "; ".join(errors)
+            )
 
     def _assert_manifest_current(self, manifest: List[Dict[str, Any]], stage_id: str, kind: str) -> None:
         for record in manifest:

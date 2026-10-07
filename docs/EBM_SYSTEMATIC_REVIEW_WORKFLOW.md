@@ -40,13 +40,16 @@ The required new-project runtime defaults are defined in
 the built-in CDP browser is the primary search surface with Chrome DevTools as
 fallback, Zotero MCP is the primary full-text connector with the read-only
 local bridge as fallback, and R is the default production statistics engine.
+Browser execution is strictly serial: create
+[the search queue](SEARCH_QUEUE.md), claim one database at a time, and retain
+its exact-as-run history/export evidence before starting the next database.
 
 ## Gated Sequence
 
 | Gate | Work product | Method checkpoints | Release rule |
 |---|---|---|---|
 | 0. Protocol | Question, scope, eligibility, outcomes, methods, registration/amendment log, declared Handbook chapter set, and chapter-level methods source log | Cochrane Ch 1-3; tutorial pp. 3-5 | Operational definitions and decisions are prespecified; source-log chapter IDs exactly match the declared set and URLs; chapter update/access dates and tutorial provenance are recorded; two independent agent reviews approve |
-| 1. Search | Database-specific strategies, dates, result counts, citation searching, search peer review | Cochrane Ch 4; tutorial pp. 5-7 | Search can be rerun; restrictions are justified; all batches are accounted for |
+| 1. Search | Database-specific strategies, serial browser-search queue, dates, result counts, citation searching, search peer review | Cochrane Ch 4; tutorial pp. 5-7 | Search can be rerun; restrictions are justified; all batches are accounted for; at most one browser task is active; every queue task is completed and hash-bound before release |
 | 2. Corpus | Imported reports, identifiers, duplicate links, study-report map | Cochrane Ch 4; PRISMA flow | Source records remain intact; duplicate reports are linked at study level |
 | 3. Title/abstract | Two independent reviewer decisions and disagreement log | Cochrane Ch 4; tutorial pp. 6-7 | Paired screening is the project's stricter policy (Cochrane describes duplicate initial screening as ideal, not a minimum); decisions follow protocol; unresolved conflicts go to adjudication |
 | 4. Full-text retrieval | Zotero collection, attachments, retrieval state, hash manifest, manual-acquisition queue | Cochrane Ch 4.6.3 steps 3-6; Ch 4.6.4 for eligibility assessment | Sought/retrieved/not-retrieved totals reconcile; inaccessible reports stay `not_assessed_pending_full_text` and are never coded as fact absence |
@@ -153,6 +156,17 @@ The reporting gate validates this manifest and requires every required path to
 be submitted with the stage. A narrative manuscript is not a substitute for
 the underlying search, screening, retrieval, extraction, risk-of-bias,
 synthesis, or certainty tables.
+
+## Serial search hand-off
+
+The search executor starts with the first ordinal in
+`search/browser_search_queue.json`. A verification page, SSO/CARSI checkpoint,
+or recoverable browser error pauses that same task and records the checkpoint.
+After the user action, the task is explicitly resumed and rerun in the same
+authenticated profile. The next database is not claimed until the current
+task has a completed event plus validated history/export evidence. The queue
+is submitted as a search-stage artifact and is revalidated by the stage ledger
+before independent reviews.
 
 ## Preserved Output Contract
 

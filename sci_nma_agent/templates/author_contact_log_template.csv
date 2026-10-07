@@ -1,0 +1,2 @@
+study_id,report_id,contact_id,contact_route,recipient,attempt_number,sent_at,response_due_at,response_received_at,status,request_scope,response_summary,source_locator,attachment_path,attachment_sha256,reviewer_id
+STUDY_ID,REPORT_ID,CONTACT-001,corresponding_author,RECIPIENT_EMAIL,1,YYYY-MM-DD,YYYY-MM-DD,,not_started,"Specify the missing result or clarification requested",SOURCE_LOCATOR,,,"REVIEWER_ID"
