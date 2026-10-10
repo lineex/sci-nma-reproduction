@@ -22,8 +22,10 @@ The two initialization commands are alternatives. `sci-nma-agent init PROJECT`
 already creates the stage ledger; do not run `review-stage init` afterward unless
 you explicitly intend to replace an existing ledger with `--overwrite`.
 
-Every stage stays blocked until all earlier stages are approved. Each
-transition rechecks every upstream artifact and review-report hash; status
+Every stage stays blocked until all earlier stages are approved. The search
+stage requires one independent review after the executor; all other stages
+require two independent approvals by default. Each transition rechecks every
+upstream artifact and review-report hash; status
 reports both ledger-chain and evidence integrity, and returns failure if
 either check fails. An executor cannot review its own stage. Reviewer IDs and session IDs must be
 distinct, and reviewers must submit different report artifacts. Session IDs
@@ -48,6 +50,11 @@ ledger revalidates its strict-serial policy, strategy and execution hashes,
 history/export hashes, and task completion. A queue with unresolved tasks does
 not release the search stage. Older projects may retain a legacy search
 artifact set until their next search rerun.
+Search release is intentionally lighter than evidence-judgement stages:
+the executor submits the queue and one independent reviewer verifies the
+strategy, counts, final-combination export, and evidence hashes. This does not
+replace the paired decisions required for title/abstract screening, full-text
+eligibility, extraction, or risk-of-bias assessment.
 
 The `deduplication` stage must submit one validated `study_report_map.json`;
 `title_abstract_screening` must submit one complete dual-decision manifest;

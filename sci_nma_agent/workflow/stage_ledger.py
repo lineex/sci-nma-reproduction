@@ -97,7 +97,7 @@ def _is_review_record(review: Any) -> bool:
 
 
 class AgentStageLedger:
-    """File-backed stage state with two independent agent reviews per gate.
+    """File-backed stage state with stage-specific independent review counts.
 
     The ledger is the hand-off contract between agent execution and peer review.
     It does not call an LLM provider; Codex or another agent runner supplies the
@@ -106,6 +106,7 @@ class AgentStageLedger:
 
     FILENAME = "agent_stage_ledger.json"
     REQUIRED_REVIEWS = 2
+    STAGE_REVIEW_REQUIREMENTS = {"search": 1}
 
     def __init__(self, project_dir: str):
         self.project_dir = Path(project_dir).expanduser().resolve()
@@ -123,11 +124,15 @@ class AgentStageLedger:
                 "project_dir": str(instance.project_dir),
                 "created_at": _now(),
                 "updated_at": _now(),
-                "required_independent_reviews": cls.REQUIRED_REVIEWS,
+                "required_independent_reviews": {
+                    stage_id: cls._required_reviews(stage_id)
+                    for stage_id in STAGE_IDS
+                },
                 "current_stage": None,
                 "stages": {
                     stage_id: {
                         "title": title,
+                        "required_independent_reviews": cls._required_reviews(stage_id),
                         "status": "pending",
                         "executor": None,
                         "run_count": 0,
@@ -153,11 +158,16 @@ class AgentStageLedger:
             raise StageLedgerError(f"Unable to read stage ledger: {exc}") from exc
         if not isinstance(ledger, dict) or ledger.get("schema_version") != 2:
             raise StageLedgerError("Unsupported or malformed stage ledger schema")
+        expected_review_map = {
+            stage_id: self._required_reviews(stage_id)
+            for stage_id in STAGE_IDS
+        }
         if (
             not isinstance(ledger.get("project_dir"), str)
             or not isinstance(ledger.get("created_at"), str)
             or not isinstance(ledger.get("updated_at"), str)
-            or ledger.get("required_independent_reviews") != self.REQUIRED_REVIEWS
+            or ledger.get("required_independent_reviews")
+            not in (expected_review_map, self.REQUIRED_REVIEWS)
         ):
             raise StageLedgerError("Stage ledger metadata is malformed")
         stages = ledger.get("stages")
@@ -180,6 +190,10 @@ class AgentStageLedger:
                 raise StageLedgerError("Stage ledger contains a malformed event record")
         stage_states = {"pending", "in_progress", "awaiting_review", "needs_revision", "approved"}
         for stage_id, stage in stages.items():
+            required_reviews = stage.get(
+                "required_independent_reviews",
+                self._required_reviews(stage_id),
+            ) if isinstance(stage, dict) else None
             if (
                 not isinstance(stage, dict)
                 or not isinstance(stage.get("status"), str)
@@ -188,6 +202,9 @@ class AgentStageLedger:
                 raise StageLedgerError(f"Stage ledger record for '{stage_id}' is malformed")
             if (
                 not isinstance(stage.get("title"), str)
+                or not isinstance(required_reviews, int)
+                or isinstance(required_reviews, bool)
+                or required_reviews != self._required_reviews(stage_id)
                 or not isinstance(stage.get("run_count"), int)
                 or isinstance(stage.get("run_count"), bool)
                 or stage["run_count"] < 0
@@ -902,7 +919,7 @@ class AgentStageLedger:
             revisions = sum(1 for item in stage["reviews"] if item["verdict"] == "revise")
             if revisions:
                 stage["status"] = "needs_revision"
-            elif approvals >= self.REQUIRED_REVIEWS:
+            elif approvals >= self._required_reviews(stage_id):
                 stage["status"] = "approved"
                 stage["approved_at"] = _now()
                 stage["attempts"][-1]["approved_at"] = stage["approved_at"]
@@ -1216,6 +1233,30 @@ class AgentStageLedger:
     def _validate_stage(stage_id: str) -> None:
         if stage_id not in STAGE_IDS:
             raise StageLedgerError(f"Unknown stage '{stage_id}'. Choose from: {', '.join(STAGE_IDS)}")
+
+    @classmethod
+    def _required_reviews(
+        cls,
+        stage_id: str,
+        ledger: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        if ledger is not None:
+            requirements = ledger.get("required_independent_reviews")
+            if isinstance(requirements, dict):
+                value = requirements.get(stage_id)
+                if isinstance(value, int) and not isinstance(value, bool):
+                    return value
+        return cls.STAGE_REVIEW_REQUIREMENTS.get(stage_id, cls.REQUIRED_REVIEWS)
+
+    @classmethod
+    def required_reviews_for_stage(
+        cls,
+        stage_id: str,
+        ledger: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        """Public read-only review requirement used by CLI/reporting adapters."""
+        cls._validate_stage(stage_id)
+        return cls._required_reviews(stage_id, ledger)
 
     @staticmethod
     def _required_name(value: str, field: str) -> str:

@@ -378,7 +378,7 @@ def main():
     # Command: review-stage (multi-agent workflow gates)
     stage_parser = subparsers.add_parser(
         "review-stage",
-        help="Manage the new-review agent stage ledger and two-reviewer release gates",
+        help="Manage the new-review agent stage ledger and stage-specific review gates",
     )
     stage_actions = stage_parser.add_subparsers(dest="stage_action", required=True)
     stage_init = stage_actions.add_parser("init", help="Create the agent stage ledger")
@@ -668,7 +668,7 @@ def main():
                 result["stage_run"] = resumed["stages"]["fulltext_retrieval"]["run_count"]
                 result["next_action"] = (
                     "Continue full-text retrieval from the versioned manifest; submit the manifest and queue "
-                    "for two independent reviews before dependent stages proceed."
+                        "for two independent reviews before dependent stages proceed."
                 )
                 print(json.dumps(result, ensure_ascii=False, indent=2))
         except (ManualFullTextQueueError, StageLedgerError, ZoteroMCPError, OSError, ValueError) as exc:
@@ -888,17 +888,38 @@ def main():
                     "integrity_valid": ledger.get("integrity_valid"),
                     "evidence_integrity_valid": ledger.get("evidence_integrity_valid"),
                     "current_stage": ledger.get("current_stage"),
-                    "stages": {key: value["status"] for key, value in ledger["stages"].items()},
+                    "stages": {
+                        key: {
+                            "status": value["status"],
+                                "required_independent_reviews": value.get(
+                                    "required_independent_reviews",
+                                    1 if key == "search" else 2,
+                                ),
+                            "completed_independent_reviews": sum(
+                                1 for review in value.get("reviews", [])
+                                if review.get("verdict") == "approve"
+                            ),
+                        }
+                        for key, value in ledger["stages"].items()
+                    },
                 }
                 print(json.dumps(summary, ensure_ascii=False, indent=2))
                 if not summary["integrity_valid"] or not summary["evidence_integrity_valid"]:
                     sys.exit(1)
             else:
                 stage_id = getattr(args, "stage", None)
+                stage_record = ledger.get("stages", {}).get(stage_id, {}) if stage_id else {}
                 print(json.dumps({
                     "ledger": str(Path(args.project).expanduser().resolve() / "verification" / AgentStageLedger.FILENAME),
                     "stage": stage_id,
                     "status": ledger["stages"].get(stage_id, {}).get("status") if stage_id else "initialized",
+                    "required_independent_reviews": (
+                        stage_record.get(
+                            "required_independent_reviews",
+                            1 if stage_id == "search" else 2,
+                        )
+                        if stage_id else None
+                    ),
                 }, ensure_ascii=False, indent=2))
         except (StageLedgerError, OSError, ValueError) as exc:
             print(f"Stage gate rejected operation: {exc}")

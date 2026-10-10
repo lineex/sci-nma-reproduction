@@ -9,7 +9,10 @@
   "inputs": [],
   "assigned_executor_agent": "",
   "executor_session_id": "",
-  "required_independent_reviewers": ["REVIEWER_A", "REVIEWER_B"],
+  "required_independent_reviewers": [
+    "REVIEWER_A",
+    "REVIEWER_B"
+  ],
   "required_outputs": [],
   "acceptance_criteria": [],
   "review_focus": [],
@@ -18,5 +21,6 @@
   "artifact_paths": [],
   "summary": "",
   "review_reports": [],
-  "gate_status": "pending"
+  "gate_status": "pending",
+  "required_independent_reviewer_count": 2
 }

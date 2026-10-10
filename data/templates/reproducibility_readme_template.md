@@ -17,7 +17,7 @@
 ## Reproduce
 
 1. Review the approved protocol and methods-source log.
-2. Confirm the search-strategy supplement contains one row per database search line, exact dates, limits, hit counts, export hashes, and peer-review status.
+2. Confirm the search-strategy supplement contains one row per database search line, exact dates, limits, hit counts, export hashes, and peer-review status. Search-stage release requires one independent review after execution; downstream evidence-judgement stages retain two independent approvals.
 3. Confirm Zotero retrieval and full-text screening manifests are hash-bound to the approved study/report map.
 4. Restore the locked R environment with `renv.lock`.
 5. Run the declared scripts in the order recorded in the analysis manifest.

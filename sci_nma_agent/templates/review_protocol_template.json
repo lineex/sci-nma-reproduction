@@ -334,12 +334,25 @@
     "amendment_log": "verification/protocol_amendments.jsonl"
   },
   "agent_governance": {
-    "independent_reviews_required_per_stage": 2,
+    "independent_reviews_required_per_stage": {
+      "protocol": 2,
+      "search": 1,
+      "deduplication": 2,
+      "title_abstract_screening": 2,
+      "fulltext_retrieval": 2,
+      "fulltext_screening": 2,
+      "data_extraction": 2,
+      "risk_of_bias": 2,
+      "synthesis": 2,
+      "certainty": 2,
+      "reporting": 2
+    },
     "executor_reviews_own_stage": false,
     "gate_ledger": "verification/agent_stage_ledger.json",
     "role_prompts_directory": "agents/review_roles",
     "independence_identity_source": "orchestrator_session_id",
-    "human_accountable_lead": ""
+    "human_accountable_lead": "",
+    "review_policy_note": "Search requires one independent review after the executor; screening, extraction, risk-of-bias, certainty, synthesis, reporting, and other release stages retain two independent approvals unless the protocol explicitly records a justified amendment."
   },
   "figure_table_contract": {
     "format_profile": "user_fixed",

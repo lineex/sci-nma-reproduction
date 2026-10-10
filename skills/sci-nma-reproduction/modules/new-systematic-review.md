@@ -48,8 +48,8 @@ effect estimates, model, or figure contents as new-review data.
    attachment keys, local file, actor, and session. The command re-reads the
    attachment through MCP, compares it with the approved report identity,
    writes versioned hashes, and resumes or hands off the retrieval stage.
-   Submit the new manifest and queue for two fresh independent reviews before
-   any dependent stage proceeds.
+   Submit the new manifest and queue for the configured retrieval-stage review
+   gate before any dependent stage proceeds.
 6. Pilot the extraction form; preserve paired extraction/verification,
    report/page/table/figure locators, transformations, and unresolved data.
 7. Assess risk of bias using design- and result-appropriate methods; decide
@@ -69,7 +69,9 @@ effect estimates, model, or figure contents as new-review data.
    checklists, manuscript, cover letter, and reproducibility README. Every
    reported number must resolve to an approved upstream manifest, table,
    figure, or locked R result artifact. Submit the complete package to the
-   reporting stage for two independent approvals.
+   reporting stage for two independent approvals. The search stage itself uses
+   one independent review after the executor; evidence-judgement stages retain
+   paired decisions and their configured two-reviewer gates.
 
 ## Stage Control
 
@@ -78,8 +80,8 @@ Read [the workflow](../../../docs/EBM_SYSTEMATIC_REVIEW_WORKFLOW.md),
 of [the method map](../../../docs/COCHRANE_AGENT_REQUIREMENTS.md). Dispatch the
 generic executor and reviewer cards from `agents/review_roles/`, augmented by
 the corresponding stage-method row and stage card. The orchestrator releases a
-stage only after both independent reports approve; a revision vote blocks the
-next stage. Zotero status is retrieval provenance, never an eligibility
+stage only after the configured number of independent reports approve; a
+revision vote blocks the next stage. Zotero status is retrieval provenance, never an eligibility
 decision. Before a report is retrieved and confirmed, use
 `not_assessed_pending_full_text`; after retrieval but before independent review
 and adjudication, use `pending_full_text_review`. Report-level

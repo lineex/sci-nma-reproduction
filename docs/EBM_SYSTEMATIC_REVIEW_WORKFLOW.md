@@ -49,7 +49,7 @@ its exact-as-run history/export evidence before starting the next database.
 | Gate | Work product | Method checkpoints | Release rule |
 |---|---|---|---|
 | 0. Protocol | Question, scope, eligibility, outcomes, methods, registration/amendment log, declared Handbook chapter set, and chapter-level methods source log | Cochrane Ch 1-3; tutorial pp. 3-5 | Operational definitions and decisions are prespecified; source-log chapter IDs exactly match the declared set and URLs; chapter update/access dates and tutorial provenance are recorded; two independent agent reviews approve |
-| 1. Search | Database-specific strategies, serial browser-search queue, component-line counts, final-combination total, and final full-record export | Cochrane Ch 4; tutorial pp. 5-7 | Search can be rerun; restrictions are justified; component lines have counts only; the final combination has the authoritative count and detailed records; at most one browser task is active; every queue task is completed and hash-bound before release |
+| 1. Search | Database-specific strategies, serial browser-search queue, component-line counts, final-combination total, and final full-record export | Cochrane Ch 4; tutorial pp. 5-7 | Search can be rerun; restrictions are justified; component lines have counts only; the final combination has the authoritative count and detailed records; at most one browser task is active; every queue task is completed and hash-bound; one independent search review approves release |
 | 2. Corpus | Imported reports, identifiers, duplicate links, study-report map | Cochrane Ch 4; PRISMA flow | Source records remain intact; duplicate reports are linked at study level |
 | 3. Title/abstract | Two independent reviewer decisions and disagreement log | Cochrane Ch 4; tutorial pp. 6-7 | Paired screening is the project's stricter policy (Cochrane describes duplicate initial screening as ideal, not a minimum); decisions follow protocol; unresolved conflicts go to adjudication |
 | 4. Full-text retrieval | Zotero collection, attachments, retrieval state, hash manifest, manual-acquisition queue | Cochrane Ch 4.6.3 steps 3-6; Ch 4.6.4 for eligibility assessment | Sought/retrieved/not-retrieved totals reconcile; inaccessible reports stay `not_assessed_pending_full_text` and are never coded as fact absence |
@@ -118,11 +118,13 @@ attachment, OCR failure, or ambiguity is not evidence of factual absence.
 
 ## Independent Agent Review Gate
 
-Each stage has one or more execution agents and at least two independent review
-agents. The executor submits durable artifacts and a concise summary. Reviewers
-record a distinct session identity, `approve` or `revise`, a report artifact,
-and findings. Only two distinct approvals release the next stage. One revision
-vote blocks progression. Rerunning an approved stage invalidates its downstream
+Each stage has one or more execution agents and stage-specific independent
+review requirements. The search stage requires one independent review after the
+executor; evidence-judgement stages retain two independent reviewers and paired
+decisions. The executor submits durable artifacts and a concise summary.
+Reviewers record a distinct session identity, `approve` or `revise`, a report
+artifact, and findings. The configured number of approvals releases the stage;
+one revision vote blocks progression. Rerunning an approved stage invalidates its downstream
 approvals so stale outputs cannot survive a changed input. Session IDs are
 orchestrator-supplied audit fields; the local ledger does not attest to model
 provider, agent isolation, or human identity.

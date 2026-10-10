@@ -199,6 +199,9 @@ When the search stage uses browser automation, submit
 ledger revalidates the queue, strategy/execution hashes, history/export hashes,
 execution policy, and completion of every task. A queue with unresolved
 `pending`, `running`, `paused`, or `failed` tasks is not release-ready.
+Search-stage release requires one independent reviewer after the executor;
+the two-reviewer requirement remains for the downstream evidence-judgement
+stages.
 
 Projects created before the queue feature may retain an older search artifact
 set. For a new or rerun browser search, create and submit the queue so that the

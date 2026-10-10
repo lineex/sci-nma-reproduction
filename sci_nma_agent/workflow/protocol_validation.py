@@ -1836,8 +1836,32 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
         errors.append("synthesis.network_meta_analysis.not_planned_rationale is required when NMA is disabled")
 
     governance = protocol.get("agent_governance")
-    if not isinstance(governance, dict) or governance.get("independent_reviews_required_per_stage") != 2:
-        errors.append("agent_governance must require two independent stage reviews")
+    expected_review_requirements = {
+        "protocol": 2,
+        "search": 1,
+        "deduplication": 2,
+        "title_abstract_screening": 2,
+        "fulltext_retrieval": 2,
+        "fulltext_screening": 2,
+        "data_extraction": 2,
+        "risk_of_bias": 2,
+        "synthesis": 2,
+        "certainty": 2,
+        "reporting": 2,
+    }
+    if not isinstance(governance, dict):
+        errors.append(
+            "agent_governance must declare stage-specific independent review requirements"
+        )
+    else:
+        declared = governance.get("independent_reviews_required_per_stage")
+        # Accept the old scalar value for existing protocol files, but require
+        # the new map in newly initialized protocols.
+        if declared not in (2, expected_review_requirements):
+            errors.append(
+                "agent_governance.independent_reviews_required_per_stage must "
+                "set search=1 and all other stages=2"
+            )
     if isinstance(governance, dict) and governance.get("executor_reviews_own_stage") is not False:
         errors.append("agent_governance.executor_reviews_own_stage must be false")
     return errors

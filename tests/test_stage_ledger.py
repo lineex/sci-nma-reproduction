@@ -268,9 +268,14 @@ def test_included_screening_record_requires_approved_report_identity():
     assert any("requires DOI or PMID, or both title and publication year" in error for error in errors)
 
 
-def test_stage_requires_two_distinct_independent_approvals(tmp_path):
+def test_protocol_requires_two_approvals_but_search_requires_one_independent_review(tmp_path):
     AgentStageLedger.initialize(str(tmp_path))
     ledger = AgentStageLedger(str(tmp_path))
+    initial = ledger.load()
+    assert initial["required_independent_reviews"]["search"] == 1
+    assert initial["required_independent_reviews"]["protocol"] == 2
+    assert initial["stages"]["search"]["required_independent_reviews"] == 1
+    assert initial["stages"]["protocol"]["required_independent_reviews"] == 2
     artifact = _write(tmp_path, "review_protocol.json", _valid_protocol_text())
     report_a = _write(tmp_path, "verification/reviews/a.md", "pass A")
     report_b = _write(tmp_path, "verification/reviews/b.md", "pass B")
@@ -302,7 +307,24 @@ def test_stage_requires_two_distinct_independent_approvals(tmp_path):
     assert ledger.verify_integrity()
 
     _start(ledger, "search", "search-agent")
-    assert ledger.load()["stages"]["search"]["status"] == "in_progress"
+    search_artifact = _write(tmp_path, "search/strategy.json", '{"strategy":"verified"}')
+    _submit(ledger, "search", "search-agent", [search_artifact], "Search strategy submitted")
+    search_report = _write(
+        tmp_path,
+        "verification/reviews/search-review.md",
+        "Search strategy syntax, counts, and retained evidence were independently verified.",
+    )
+    reviewed = _review(
+        ledger,
+        "search",
+        "search-reviewer",
+        "approve",
+        search_report,
+        findings="Search artifacts and evidence hashes pass review.",
+    )
+    assert reviewed["stages"]["search"]["status"] == "approved"
+    assert len(reviewed["stages"]["search"]["reviews"]) == 1
+    assert ledger.verify_integrity()
 
 
 def test_protocol_preflight_rejects_template_and_requires_nma_assumptions():

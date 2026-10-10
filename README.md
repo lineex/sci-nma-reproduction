@@ -63,6 +63,9 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
      the same task resumes after the checkpoint with its history/export evidence.
    - The stage ledger revalidates the queue and all evidence hashes before
      search-stage release. See [`docs/SEARCH_QUEUE.md`](docs/SEARCH_QUEUE.md).
+   - Search-stage release uses one independent review after execution;
+     screening, extraction, risk-of-bias, synthesis, certainty, and reporting
+     retain their existing two-reviewer gates.
 
 ---
 
