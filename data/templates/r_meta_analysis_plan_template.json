@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "workflow": "doing_meta_analysis_in_r_integrated",
+  "project_id": "PROJECT_ID",
+  "protocol_version": "PROTOCOL_VERSION",
+  "primary_estimand": {
+    "population": "",
+    "contrast": "",
+    "outcome": "",
+    "timepoint": "",
+    "analysis_population": "",
+    "direction_of_benefit": "",
+    "multiple_reports_rule": ""
+  },
+  "effect_size_calculation": {
+    "outcome_type": "binary",
+    "measure": "RR",
+    "scale_for_pooling": "log",
+    "input_columns": [],
+    "source_level_effect_available": "",
+    "conversion_rules": [
+      {
+        "source_format": "",
+        "target_format": "",
+        "formula_or_function": "",
+        "assumptions": "",
+        "source_locator": ""
+      }
+    ],
+    "small_sample_correction": "none",
+    "zero_event_rule": "",
+    "ci_or_se_conversion": "",
+    "direction_check": "",
+    "unit_of_analysis_rule": ""
+  },
+  "pooling": {
+    "primary_model": "random_effects",
+    "primary_estimator": "REML",
+    "interval_method": "Hartung-Knapp",
+    "tau2_interval_method": "Q-profile",
+    "prediction_interval": true,
+    "common_effect_sensitivity": true,
+    "alternative_tau2_sensitivity": "Paule-Mandel",
+    "software_function": "meta::metagen or meta::metabin/metacont"
+  },
+  "heterogeneity": {
+    "report": [
+      "Q",
+      "I2",
+      "H2",
+      "tau2",
+      "tau2_interval",
+      "prediction_interval"
+    ],
+    "interpretation_rule": "",
+    "clinical_heterogeneity_rule": "",
+    "statistical_heterogeneity_rule": ""
+  },
+  "moderators": {
+    "subgroups": [],
+    "subgroup_interaction_test": "",
+    "meta_regression": [],
+    "moderator_coding": "",
+    "minimum_studies_per_parameter": 10,
+    "prespecified_interactions_only": true,
+    "ecological_interpretation_warning": ""
+  },
+  "dependency": {
+    "multi_arm_rule": "",
+    "multiple_outcomes_rule": "",
+    "multiple_timepoints_rule": "",
+    "repeated_measures_rule": "",
+    "covariance_or_robust_variance_method": "",
+    "correlation_assumption": "",
+    "sensitivity_analysis": ""
+  },
+  "small_study_effects": {
+    "funnel_plot": true,
+    "minimum_studies_for_tests": 10,
+    "eggers_test": "conditional_if_k_ge_10",
+    "beggs_test": "conditional_if_k_ge_10",
+    "trim_and_fill": "sensitivity_only",
+    "selection_model": "",
+    "interpretation_rule": "Diagnostics do not prove publication bias and do not trigger automatic exclusion."
+  },
+  "diagnostics": {
+    "forest_plot": true,
+    "leave_one_out": true,
+    "influence_analysis": true,
+    "baujat_plot": true,
+    "gosh": "when_supported_and_interpretable",
+    "residual_checks": "",
+    "outlier_rule": "",
+    "diagnostic_output_paths": []
+  },
+  "network_meta_analysis": {
+    "planned": false,
+    "package": "netmeta",
+    "node_definitions": "",
+    "connectivity": "",
+    "transitivity": "",
+    "effect_modifiers": [],
+    "inconsistency_global": "",
+    "inconsistency_local": "",
+    "multi_arm_covariance": "",
+    "heterogeneity": "",
+    "ranking_method": "",
+    "ranking_uncertainty": "",
+    "certainty_method": "",
+    "assumption_failure_plan": ""
+  },
+  "bayesian_meta_analysis": {
+    "planned": false,
+    "package_or_engine": "",
+    "likelihood": "",
+    "link": "",
+    "priors": "",
+    "chains": 4,
+    "warmup": 1000,
+    "iterations": 4000,
+    "seed": "",
+    "diagnostics": [
+      "Rhat",
+      "bulk_ESS",
+      "tail_ESS",
+      "divergences",
+      "posterior_predictive_check"
+    ]
+  },
+  "precision_and_power": {
+    "planned": false,
+    "smallest_important_effect": "",
+    "target_precision": "",
+    "study_count_scenarios": [],
+    "assumptions": "",
+    "limitations": ""
+  },
+  "software": {
+    "r_version": "",
+    "packages": [
+      "meta VERSION",
+      "metafor VERSION",
+      "netmeta VERSION"
+    ],
+    "runtime_lock": "renv.lock",
+    "script_path": "code/meta_analysis.R",
+    "session_info_path": "verification/r_session_info.txt",
+    "seed_or_deterministic_rationale": "",
+    "code_commit": ""
+  },
+  "reporting": {
+    "primary_result_path": "results/primary_meta_analysis.json",
+    "diagnostics_manifest_path": "verification/r_diagnostics_manifest.json",
+    "figure_paths": [],
+    "table_paths": [],
+    "manuscript_location": "",
+    "deviations_path": "verification/analysis_deviations.json"
+  }
+}
+

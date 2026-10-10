@@ -66,6 +66,14 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
    - Search-stage release uses one independent review after execution;
      screening, extraction, risk-of-bias, synthesis, certainty, and reporting
      retain their existing two-reviewer gates.
+8. **Doing Meta-Analysis in R integration**:
+   - New projects receive a fillable `analysis/r_meta_analysis_plan.json` and
+     `code/meta_analysis.R` scaffold.
+   - The plan covers effect-size conversion, REML/Paule-Mandel, Hartung–Knapp,
+     Q-profile intervals, prediction intervals, influence diagnostics,
+     subgroup/meta-regression, small-study effects, dependency handling, and
+     NMA checks.
+   - See [`docs/DOING_META_ANALYSIS_IN_R_INTEGRATION.md`](docs/DOING_META_ANALYSIS_IN_R_INTEGRATION.md).
 
 ---
 

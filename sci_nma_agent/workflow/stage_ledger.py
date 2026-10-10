@@ -752,6 +752,8 @@ class AgentStageLedger:
                 required_paths = {
                     analysis_paths[0].relative_to(self.project_dir).as_posix(),
                     str(analysis_data.get("input_snapshot_path", "")),
+                    str(analysis_data.get("r_meta_analysis_plan_path", "")),
+                    str(analysis_data.get("software", {}).get("script_path", "")),
                     *(
                         str(path)
                         for path in analysis_data.get("software", {}).get("runtime_lock_paths", [])
@@ -1076,6 +1078,8 @@ class AgentStageLedger:
         required_paths = {
             records[0]["path"],
             str(analysis_data.get("input_snapshot_path", "")),
+            str(analysis_data.get("r_meta_analysis_plan_path", "")),
+            str(analysis_data.get("software", {}).get("script_path", "")),
             *(
                 str(path)
                 for path in analysis_data.get("software", {}).get("runtime_lock_paths", [])

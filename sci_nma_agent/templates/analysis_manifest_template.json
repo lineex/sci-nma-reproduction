@@ -2,6 +2,9 @@
   "schema_version": 1,
   "project_id": "PROJECT_ID",
   "stage_id": "synthesis",
+  "workflow_standard": "doing_meta_analysis_in_r_integrated",
+  "r_meta_analysis_plan_path": "analysis/r_meta_analysis_plan.json",
+  "r_meta_analysis_plan_sha256": "",
   "protocol_sha256": "",
   "input_snapshot_path": "data/locked_input_snapshot.json",
   "input_snapshot_sha256": "",
@@ -46,7 +49,28 @@
     "verification_engines": [],
     "certainty_tools": [],
     "runtime_lock_paths": [],
-    "random_seed": ""
+    "random_seed": "",
+    "script_path": "code/meta_analysis.R"
+  },
+  "r_meta_analysis": {
+    "effect_size_calculation": {
+      "measure": "",
+      "outcome_type": "",
+      "conversion_rules": [],
+      "source_level_provenance": []
+    },
+    "pooling": {
+      "model": "",
+      "tau2_estimator": "",
+      "interval_method": "",
+      "tau2_interval_method": "",
+      "prediction_interval": false
+    },
+    "diagnostics": [],
+    "moderators": [],
+    "dependency_rule": "",
+    "small_study_effects_rule": "",
+    "nma_package_and_checks": ""
   },
   "diagnostics": [],
   "intermediate_outputs": [],

@@ -468,6 +468,8 @@ def main():
         template_targets = {
             "review_protocol_template.json": "review_protocol.json",
             "analysis_manifest_template.json": "verification/analysis_manifest.json",
+            "r_meta_analysis_plan_template.json": "analysis/r_meta_analysis_plan.json",
+            "r_meta_analysis_pipeline_template.R": "code/meta_analysis.R",
             "methods_source_log_template.json": "verification/methods_source_log.json",
             "data_extraction_template.csv": "data/data_extraction_template.csv",
             "agent_stage_card_template.json": "agents/stage_card_template.json",

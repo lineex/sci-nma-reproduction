@@ -1757,6 +1757,9 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
         errors.append("synthesis.analysis_manifest_path must be a safe project-relative path")
     elif PurePosixPath(manifest_path).name != "analysis_manifest.json":
         errors.append("synthesis.analysis_manifest_path must name analysis_manifest.json")
+    r_plan_path = _value(protocol, "synthesis.r_meta_analysis_plan_path")
+    if r_plan_path and not _is_safe_project_relative_path(r_plan_path):
+        errors.append("synthesis.r_meta_analysis_plan_path must be a safe project-relative path")
 
     pairwise_plan = _value(protocol, "synthesis.pairwise_meta_analysis")
     if pairwise_plan is None:
@@ -2027,6 +2030,24 @@ def validate_analysis_manifest_file(
     if project_dir is None or not isinstance(manifest, dict):
         return errors
     project = Path(project_dir).expanduser().resolve()
+    r_plan_path = manifest.get("r_meta_analysis_plan_path")
+    if r_plan_path:
+        if not _is_safe_project_relative_path(r_plan_path):
+            errors.append("analysis manifest r_meta_analysis_plan_path must be project-relative")
+        else:
+            plan_path = (project / Path(*PurePosixPath(r_plan_path).parts)).resolve()
+            try:
+                plan_path.relative_to(project)
+            except ValueError:
+                errors.append("analysis manifest r_meta_analysis_plan_path escaped the review project")
+            else:
+                if not plan_path.is_file():
+                    errors.append(f"R meta-analysis plan file is missing: {r_plan_path}")
+                else:
+                    errors.extend(validate_r_meta_analysis_plan_file(plan_path))
+                    plan_hash = str(manifest.get("r_meta_analysis_plan_sha256", "")).lower()
+                    if plan_hash and hashlib.sha256(plan_path.read_bytes()).hexdigest() != plan_hash:
+                        errors.append("analysis manifest r_meta_analysis_plan_sha256 does not match its file")
     records = [("output", output) for output in manifest.get("outputs", [])]
     records.extend(("intermediate output", output) for output in manifest.get("intermediate_outputs", []))
     for index, (label, output) in enumerate(records):
@@ -2085,6 +2106,49 @@ def validate_analysis_manifest_file(
     return errors
 
 
+def validate_r_meta_analysis_plan_file(path: Union[str, Path]) -> List[str]:
+    """Validate the fillable R analysis decision form before synthesis release."""
+    try:
+        plan = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"Unable to read R meta-analysis plan JSON: {exc}"]
+    if not isinstance(plan, dict):
+        return ["R meta-analysis plan must be a JSON object"]
+    errors: List[str] = []
+    if plan.get("schema_version") != 1:
+        errors.append("R meta-analysis plan schema_version must be 1")
+    if plan.get("workflow") != "doing_meta_analysis_in_r_integrated":
+        errors.append("R meta-analysis plan workflow must be doing_meta_analysis_in_r_integrated")
+    required_sections = (
+        "primary_estimand",
+        "effect_size_calculation",
+        "pooling",
+        "heterogeneity",
+        "moderators",
+        "dependency",
+        "small_study_effects",
+        "diagnostics",
+        "software",
+        "reporting",
+    )
+    for section in required_sections:
+        if not isinstance(plan.get(section), dict):
+            errors.append(f"R meta-analysis plan must contain object section: {section}")
+    effect = plan.get("effect_size_calculation", {})
+    for field in ("outcome_type", "measure", "scale_for_pooling", "zero_event_rule", "direction_check"):
+        if not _is_filled(effect.get(field)):
+            errors.append(f"R meta-analysis plan effect_size_calculation.{field} must be completed")
+    pooling = plan.get("pooling", {})
+    for field in ("primary_model", "primary_estimator", "interval_method", "tau2_interval_method"):
+        if not _is_filled(pooling.get(field)):
+            errors.append(f"R meta-analysis plan pooling.{field} must be completed")
+    software = plan.get("software", {})
+    for field in ("r_version", "runtime_lock", "script_path", "session_info_path"):
+        if not _is_filled(software.get(field)):
+            errors.append(f"R meta-analysis plan software.{field} must be completed")
+    return errors
+
+
 def validate_analysis_manifest_binding(
     manifest: Dict[str, Any],
     protocol: Dict[str, Any],
@@ -2115,6 +2179,12 @@ def validate_analysis_manifest_binding(
                 "analysis manifest path does not match synthesis.analysis_manifest_path "
                 f"({actual_rel or actual} != {declared_path})"
             )
+    declared_r_plan = synthesis.get("r_meta_analysis_plan_path")
+    actual_r_plan = manifest.get("r_meta_analysis_plan_path")
+    if _is_filled(declared_r_plan) and actual_r_plan is not None and actual_r_plan != declared_r_plan:
+        errors.append(
+            "analysis manifest R meta-analysis plan path does not match the approved protocol"
+        )
 
     nma_protocol = synthesis.get("network_meta_analysis") if isinstance(synthesis.get("network_meta_analysis"), dict) else {}
     nma_manifest = manifest.get("network_meta_analysis") if isinstance(manifest.get("network_meta_analysis"), dict) else {}

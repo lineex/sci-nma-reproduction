@@ -30,7 +30,9 @@ Zotero, AI role cards, and the two-reviewer ledger. Preserve the approved
 project figure/table contract; change it only when the project owner asks.
 
 Before synthesis, apply [`docs/STATISTICAL_METHODS_AND_SOFTWARE.md`](../../docs/STATISTICAL_METHODS_AND_SOFTWARE.md)
-and create the required `analysis_manifest.json`. The document defines the
+and [`docs/DOING_META_ANALYSIS_IN_R_INTEGRATION.md`](../../docs/DOING_META_ANALYSIS_IN_R_INTEGRATION.md).
+Complete `analysis/r_meta_analysis_plan.json`, run the generated
+`code/meta_analysis.R`, and create the required `analysis_manifest.json`. The document defines the
 effect-measure, estimator, NMA, software-version, and hash requirements; it
 does not load reproduction-only calibration instructions. The bundled Python
 calculators are QA/teaching aids only; formal pairwise or NMA results must be
@@ -97,6 +99,9 @@ Use a **form-first, journal-shaped package** for every new review:
 - Complete the paired screening, Zotero retrieval, extraction, risk-of-bias,
   synthesis, and certainty supplements from the initialized templates. Do not
   reconstruct these details from narrative prose after the fact.
+- Complete `analysis/r_meta_analysis_plan.json` before production R code. It
+  captures effect-size conversions, pooling, heterogeneity, diagnostics,
+  moderators, dependency handling, small-study effects, and NMA decisions.
 - Generate the manuscript, cover letter, reproducibility README, figures,
   tables, and supplementary archive from approved, hash-bound artifacts.
   `reporting/supplementary_materials_manifest.json` and

@@ -62,6 +62,8 @@ def test_init_copies_gated_manifest_and_methods_source_templates(tmp_path, monke
 
     expected = [
         "verification/analysis_manifest.json",
+        "analysis/r_meta_analysis_plan.json",
+        "code/meta_analysis.R",
         "verification/methods_source_log.json",
         "screening/title_abstract_screening_manifest.json",
         "screening/full_text_retrieval_manifest.json",
@@ -84,6 +86,13 @@ def test_init_copies_gated_manifest_and_methods_source_templates(tmp_path, monke
     )
     assert protocol["synthesis"]["software"]["primary_engine"]["name"] == "R"
     assert manifest["software"]["primary_engine"]["name"] == "R"
+    plan = json.loads(
+        (tmp_path / "analysis" / "r_meta_analysis_plan.json").read_text(encoding="utf-8")
+    )
+    assert plan["workflow"] == "doing_meta_analysis_in_r_integrated"
+    assert (tmp_path / "code" / "meta_analysis.R").read_text(encoding="utf-8").startswith(
+        "# Doing Meta-Analysis in R integration scaffold"
+    )
 
 
 def test_synthesize_cli_keeps_production_release_gate_explicit(tmp_path, monkeypatch, capsys):

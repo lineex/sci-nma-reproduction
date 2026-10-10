@@ -55,7 +55,7 @@ effect estimates, model, or figure contents as new-review data.
 7. Assess risk of bias using design- and result-appropriate methods; decide
    compatibility before synthesis; apply the [statistical methods and software
    contract](../../../docs/STATISTICAL_METHODS_AND_SOFTWARE.md), create
-   `analysis_manifest.json`, and prespecify analysis, diagnostics, and
+   `analysis/r_meta_analysis_plan.json`, `analysis_manifest.json`, and prespecify analysis, diagnostics, and
    sensitivity decisions. Start new projects with **R as the default primary
    production engine**, then lock the exact R/package versions, `renv.lock`,
    and scripts. A Stata or other validated engine is allowed only when the

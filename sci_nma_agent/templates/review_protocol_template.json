@@ -271,6 +271,8 @@
     "disagreement_resolution": ""
   },
   "synthesis": {
+    "workflow_standard": "doing_meta_analysis_in_r_integrated",
+    "r_meta_analysis_plan_path": "analysis/r_meta_analysis_plan.json",
     "synthesis_groups": [],
     "clinical_methodological_compatibility_rule": "",
     "effect_measures": {},

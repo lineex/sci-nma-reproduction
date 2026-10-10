@@ -5,6 +5,12 @@ network meta-analysis. It is a project implementation contract informed by
 the current Cochrane Handbook; it is not a claim that Cochrane mandates a
 particular package. The approved figure and table format remains unchanged.
 
+The R implementation is aligned with the reusable workflow in
+[Doing Meta-Analysis with R](DOING_META_ANALYSIS_IN_R_INTEGRATION.md). That
+integration adds a fillable analysis plan and an R scaffold; it does not make
+the guide's example data, defaults, or teaching demonstrations part of a
+clinical protocol.
+
 ## 0. New-project software default
 
 For a **new** evidence-synthesis project, the project default primary
@@ -63,6 +69,30 @@ is not silently converted into a zero or a study exclusion.
 5. Treat subgroup and meta-regression coefficients as comparisons of
    prespecified interactions. State the residual heterogeneity, the number of
    studies per moderator, and the ecological interpretation limitation.
+
+### R execution checklist
+
+The initialized `analysis/r_meta_analysis_plan.json` must be completed before
+the synthesis agent writes production code. It records the source-level
+effect-size conversion, target scale, zero-event rule, small-sample correction,
+model, `tau^2` estimator, interval method, prediction interval, dependency
+rule, subgroup/meta-regression plan, influence diagnostics, small-study-effect
+thresholds, and result paths. The generated `code/meta_analysis.R` is a
+scaffold for `meta`, `metafor`, and `netmeta`; it must be edited to match the
+approved plan and run under the declared `renv.lock`.
+
+The preferred report pattern is:
+
+```text
+effect-size table -> primary model -> heterogeneity/prediction interval
+-> prespecified sensitivity -> influence/leave-one-out/Baujat/GOSH
+-> conditional small-study diagnostics -> subgroup/meta-regression
+-> locked result tables and fixed-format figures
+```
+
+No diagnostic is an automatic exclusion rule. A change from the declared
+effect measure, estimator, interval method, or dependency rule is a protocol
+deviation and must be entered in the analysis manifest.
 
 ## 3. Network meta-analysis
 
@@ -135,6 +165,9 @@ approved protocol and locked input snapshot. Start from the repository template
 - protocol, input, intermediate, diagnostic, and output SHA-256 hashes. Store
   file-backed intermediate or diagnostic records in `intermediate_outputs` so
   the stage ledger can re-check their bytes;
+- `r_meta_analysis_plan_path` and its SHA-256, plus the production R script
+  path; the synthesis stage revalidates the plan and requires both the plan and
+  script to be submitted as artifacts;
 - model warnings, convergence results, deviations, and independent reviewer
   sign-off.
 
@@ -226,6 +259,8 @@ synthesis.
 ## 7. Synthesis release checklist
 
 - [ ] Effect scale and estimand match the protocol for every pooled outcome.
+- [ ] Every effect-size conversion is recorded with formula/function,
+      assumptions, and source locator in `analysis/r_meta_analysis_plan.json`.
 - [ ] Transformations, zero-event handling, multi-arm/dependency rules, and
       missing-data decisions are explicit.
 - [ ] Model, estimator, interval method, `tau^2`, `I^2`, `Q`, prediction
