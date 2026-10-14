@@ -5,10 +5,16 @@ description: Reliable authenticated Embase search and bulk retrieval through the
 
 # Embase Web Search
 
-Use the built-in CDP browser as the primary search transport and Chrome
-DevTools as the fallback. Use this skill after `embase-session` confirms that
-the selected browser session is ready; REST pagination is an optional,
-protocol-recorded export/check route.
+Use the Codex built-in CDP browser first. Chrome DevTools is only a documented
+fallback when the built-in browser is unavailable or cannot perform a
+required operation. Follow the project
+[`BROWSER_ROUTE_POLICY.md`](../../docs/BROWSER_ROUTE_POLICY.md). Use this
+skill after `embase-session` confirms that the selected browser session is
+ready; REST pagination is an optional, protocol-recorded export/check route.
+When an active project search queue is present, execute only its first
+unchecked native line, persist the count and history/query locator with
+`search-queue record-line`, and resume from `search-queue checklist` after an
+interruption. Do not run multiple native lines or databases in one batch.
 
 ## Query Style
 

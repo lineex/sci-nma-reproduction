@@ -71,6 +71,27 @@
       "dependency_artifacts": []
     },
     {
+      "artifact_id": "figure_table_format_audit",
+      "stage": "reporting",
+      "artifact_type": "internal_format_qa",
+      "required_for_submission": true,
+      "path": "reporting/figure_table_format_audit.csv",
+      "status": "planned",
+      "sha256": "",
+      "source_locator": "Manual item-by-item comparison of generated figures and tables against the hash-locked project contract",
+      "review_signoff": {
+        "executor": "",
+        "reviewer_a": "",
+        "reviewer_b": "",
+        "approved_at": ""
+      },
+      "template_path": "data/templates/figure_table_format_audit_template.csv",
+      "file_format": "CSV",
+      "manuscript_location": "Internal release QA record",
+      "content_contract": "One completed audit row for every figure/table item declared by the frozen contract; do not add or remove contract items",
+      "dependency_artifacts": []
+    },
+    {
       "artifact_id": "prisma_2020_abstract_checklist",
       "stage": "reporting",
       "artifact_type": "reporting_abstract_checklist",

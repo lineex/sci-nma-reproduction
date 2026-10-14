@@ -54,14 +54,18 @@ from .workflow.fulltext_acquisition import (
 from .workflow.search_queue import (
     SearchQueueError,
     complete_search_task,
+    confirm_next_search_task,
     create_search_queue,
     fail_search_task,
     load_search_queue,
     pause_search_task,
     queue_status,
+    record_search_line_count,
+    render_search_checklist,
     resume_search_task,
     start_search_task,
 )
+from .workflow.continuous_workplan import initialize_continuous_workplan
 
 
 def _write_evidence_snapshot(evidence):
@@ -197,6 +201,12 @@ def main():
     )
     search_queue_status.add_argument("--queue", required=True)
 
+    search_queue_checklist = search_queue_actions.add_parser(
+        "checklist",
+        help="Render the persisted search queue as a step-by-step to-do list",
+    )
+    search_queue_checklist.add_argument("--queue", required=True)
+
     search_queue_start = search_queue_actions.add_parser(
         "start",
         help="Claim the next database task; only one task may run",
@@ -219,6 +229,26 @@ def main():
     search_queue_resume.add_argument("--task-id", required=True)
     search_queue_resume.add_argument("--actor", required=True)
     search_queue_resume.add_argument("--session", required=True)
+
+    search_queue_confirm = search_queue_actions.add_parser(
+        "confirm-next",
+        help="Record explicit user confirmation before advancing to the next database",
+    )
+    search_queue_confirm.add_argument("--queue", required=True)
+    search_queue_confirm.add_argument("--actor", required=True)
+    search_queue_confirm.add_argument("--session", required=True)
+
+    search_queue_record_line = search_queue_actions.add_parser(
+        "record-line",
+        help="Save the current native query line's result count before proceeding",
+    )
+    search_queue_record_line.add_argument("--queue", required=True)
+    search_queue_record_line.add_argument("--task-id", required=True)
+    search_queue_record_line.add_argument("--actor", required=True)
+    search_queue_record_line.add_argument("--session", required=True)
+    search_queue_record_line.add_argument("--line-number", required=True, type=int)
+    search_queue_record_line.add_argument("--result-count", required=True, type=int)
+    search_queue_record_line.add_argument("--locator", required=True)
 
     for action, help_text in (
         ("pause", "Pause the active task at a user-verification or recovery checkpoint"),
@@ -490,6 +520,7 @@ def main():
             "prisma_2020_checklist_template.csv": "reporting/supplementary/prisma_2020_checklist.csv",
             "prisma_2020_abstract_checklist_template.csv": "reporting/supplementary/prisma_2020_abstract_checklist.csv",
             "prisma_s_checklist_template.csv": "reporting/supplementary/prisma_s_checklist.csv",
+            "figure_table_format_audit_template.csv": "reporting/figure_table_format_audit.csv",
             "search_strategy_supplement_template.md": "reporting/supplementary/search_strategy_supplement.md",
             "risk_of_bias_supplement_template.csv": "reporting/supplementary/risk_of_bias_supplement.csv",
             "synthesis_results_supplement_template.csv": "reporting/supplementary/synthesis_results_supplement.csv",
@@ -503,6 +534,7 @@ def main():
             if resource.is_file():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(resource.read_bytes())
+        workplan_artifacts = initialize_continuous_workplan(project_path)
         if not (project_path / "verification" / AgentStageLedger.FILENAME).exists():
             AgentStageLedger.initialize(str(project_path))
         print(f"Initialized review project scaffolding in '{p_dir}'.")
@@ -510,6 +542,12 @@ def main():
         print("  - Screening directory ready in: screening/")
         print("  - New-review protocol, extraction form, and gated agent ledger initialized.")
         print("  - Form-first reporting package initialized in: reporting/ and reporting/supplementary/")
+        print(
+            "  - Resumable work plan and append-only event log initialized: "
+            f"{workplan_artifacts['workplan_path']}, {workplan_artifacts['events_path']}"
+        )
+        print("  - After protocol approval, bind its hash and seed the task tree from approved stage/database work.")
+        print("  - Fill the copied figure/table contract, then hash and submit it with the protocol before generation.")
         print("  - Runtime defaults: search CDP built-in browser -> Chrome DevTools; full text Zotero MCP -> local read-only; statistics R.")
 
     elif args.command == "zotero-fulltext":
@@ -995,6 +1033,9 @@ def main():
                 )
             elif args.search_queue_action == "status":
                 result = queue_status(args.queue)
+            elif args.search_queue_action == "checklist":
+                print(render_search_checklist(args.queue), end="")
+                return
             elif args.search_queue_action == "start":
                 result = start_search_task(
                     args.queue,
@@ -1009,6 +1050,22 @@ def main():
                     task_id=args.task_id,
                     actor=args.actor,
                     session=args.session,
+                )
+            elif args.search_queue_action == "confirm-next":
+                result = confirm_next_search_task(
+                    args.queue,
+                    actor=args.actor,
+                    session=args.session,
+                )
+            elif args.search_queue_action == "record-line":
+                result = record_search_line_count(
+                    args.queue,
+                    task_id=args.task_id,
+                    actor=args.actor,
+                    session=args.session,
+                    line_number=args.line_number,
+                    result_count=args.result_count,
+                    history_or_query_locator=args.locator,
                 )
             elif args.search_queue_action == "pause":
                 result = pause_search_task(

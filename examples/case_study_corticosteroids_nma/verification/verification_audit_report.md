@@ -1,7 +1,7 @@
 # 5-Tier Verification Audit Report
 
 **Project Directory**: `examples\case_study_corticosteroids_nma`  
-**Audit Timestamp**: `2026-09-22T01:11:42.331404`  
+**Audit Timestamp**: `2026-10-14T03:00:34.180590`  
 **Overall Compliance Status**: **✅ PASSED (100% Verified)**
 
 ---
@@ -27,6 +27,8 @@
   - `records_screened`: 750
   - `reports_sought`: 112
   - `reports_assessed`: 108
+  - `reports_included`: 29
+  - `fulltext_pending`: 0
   - `studies_included`: 29
   - `flow_loss`: 0
 
@@ -57,7 +59,7 @@
 - **Status**: PASSED
 - **Metrics**:
   - `docx`: {'tables_audited': 1, 'header_repeats_valid': 1, 'cant_split_valid_rows': 9, 'total_rows': 9}
-  - `xlsx`: {'sheet_count': 3, 'sheet_names': ['Study_Characteristics', 'Primary_Outcome_Mortality', 'SUCRA_Rankings'], 'formula_cells_count': 4}
+  - `xlsx`: {'sheet_count': 3, 'sheet_names': ['Study_Characteristics', 'QA_Primary_Outcome_Mortality', 'QA_Rankings_Not_Production_NMA'], 'formula_cells_count': 4}
 
 ---
 

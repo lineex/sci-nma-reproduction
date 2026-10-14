@@ -59,5 +59,12 @@ does not prescribe AI roles, Zotero, or this project's approval mechanism.
   absence. Zotero retrieval status is not eligibility.
 - Keep the user's approved figure/table format unchanged. Validate data and
   methods before rendering.
+- Before every rendering or reporting edit, reload the approved contract and
+  verify its SHA-256 from the protocol; populate only declared item IDs and
+  reject extra, missing, renamed, or redesigned outputs.
+- Treat long projects as resumable hierarchical work plans. Each stage,
+  database, report batch, and reporting artifact gets a stable task/checkpoint;
+  resume from the first unchecked item rather than trusting conversation
+  context.
 - Separate Handbook methods from project controls such as role cards, Zotero,
   the two-review gate, artifact paths, and ledger.

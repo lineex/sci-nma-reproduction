@@ -5,10 +5,18 @@ description: Reliable advanced PubMed search via NCBI E-utilities with field tag
 
 # PubMed Advanced Search
 
-Use the built-in CDP browser as the primary search transport and Chrome
-DevTools as the fallback. Build the exact PubMed syntax first; use E-utilities
-for protocol-recorded export or independent checking after the browser route,
-not as a silent replacement for the required browser/session evidence.
+Use the Codex built-in CDP browser as the primary search transport. Chrome
+DevTools is only a documented fallback when the built-in browser is unavailable
+or cannot perform a required operation. Build the exact PubMed syntax first;
+use E-utilities for protocol-recorded export or independent checking after
+the browser route, not as a silent replacement for browser/session evidence.
+Follow the project
+[`BROWSER_ROUTE_POLICY.md`](../../docs/BROWSER_ROUTE_POLICY.md).
+When this search belongs to a `sci-nma-reproduction` project with an active
+browser queue, also follow [`SEARCH_QUEUE.md`](../../docs/SEARCH_QUEUE.md):
+execute only the first unchecked native line, persist its count and locator
+with `search-queue record-line`, and resume from the saved checklist after an
+interruption. Do not batch-run the remaining lines from this helper skill.
 
 ## Common Field Tags
 
@@ -30,7 +38,10 @@ not as a silent replacement for the required browser/session evidence.
    - date range
    - `english[Language]`
    - `NOT (animals[MeSH Terms] NOT humans[MeSH Terms])`
-3. Execute with `esearch.fcgi` and always capture:
+3. Record the exact-as-run query, visible count, history/query locator, browser
+   route, and session evidence. When approved by the protocol, execute the
+   corresponding E-utilities request as an export or independent check and
+   capture:
    - exact query
    - `querytranslation`
    - total count
@@ -40,8 +51,9 @@ not as a silent replacement for the required browser/session evidence.
 
 ## Reliability Rules
 
-- Keep the built-in CDP browser search as the primary run and Chrome DevTools as fallback. Use E-utilities only as a protocol-recorded export or independent check after the browser route; retain the browser/session evidence with the API response.
-- Always show the exact query and PubMed `querytranslation` in the final response.
+- Keep the Codex built-in CDP browser as the primary protocol search route.
+- Use E-utilities only for protocol-recorded export or independent checking.
+- When E-utilities is used, also report the PubMed `querytranslation`.
 - Keep conservative rate limiting even when an API key is available.
 - Retry on `429` and transient server/network failures with backoff.
 - When a broad query hits retrieval ceilings, repair the run with year partitions instead of returning a partial result set.

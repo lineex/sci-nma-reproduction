@@ -16,6 +16,7 @@ from sci_nma_agent.workflow.protocol_validation import (
     validate_full_text_retrieval_manifest,
     validate_methods_source_log,
     validate_review_protocol,
+    validate_review_protocol_project_file,
     validate_submission_package_manifest,
     validate_title_abstract_screening_manifest,
 )
@@ -109,6 +110,10 @@ def _valid_protocol_text():
         for part in parts[:-1]:
             current = current[part]
         current[parts[-1]] = value
+    contract_file = Path(__file__).parents[1] / "data" / "nma_figure_table_spec_template.json"
+    protocol["figure_table_contract"]["contract_sha256"] = hashlib.sha256(
+        contract_file.read_bytes()
+    ).hexdigest()
     protocol["eligibility"]["inclusion_criteria"] = ["Adults", "Eligible study design"]
     protocol["eligibility"]["exclusion_criteria"] = ["Ineligible population", "No eligible outcome"]
     protocol["eligibility"]["eligible_study_designs"] = ["Randomized controlled trials"]
@@ -202,12 +207,25 @@ def _submit(ledger, stage, agent, artifacts, summary):
 
 def _submit_protocol(ledger, tmp_path, agent, protocol_artifact, summary):
     protocol = json.loads((tmp_path / protocol_artifact).read_text(encoding="utf-8"))
+    contract_path = tmp_path / protocol["figure_table_contract"]["contract_path"]
+    contract_path.parent.mkdir(parents=True, exist_ok=True)
+    if not contract_path.exists():
+        source_contract = (
+            Path(__file__).parents[1] / protocol["figure_table_contract"]["contract_path"]
+        )
+        contract_path.write_bytes(source_contract.read_bytes())
     source_log = _write(
         tmp_path,
         "verification/methods_source_log.json",
         _valid_methods_source_log_text(protocol["methods_sources"]["cochrane_chapters_used"]),
     )
-    return _submit(ledger, "protocol", agent, [protocol_artifact, source_log], summary)
+    return _submit(
+        ledger,
+        "protocol",
+        agent,
+        [protocol_artifact, source_log, contract_path.relative_to(tmp_path).as_posix()],
+        summary,
+    )
 
 
 def _review(ledger, stage, reviewer, verdict, report, findings=""):
@@ -277,6 +295,10 @@ def test_protocol_requires_two_approvals_but_search_requires_one_independent_rev
     assert initial["stages"]["search"]["required_independent_reviews"] == 1
     assert initial["stages"]["protocol"]["required_independent_reviews"] == 2
     artifact = _write(tmp_path, "review_protocol.json", _valid_protocol_text())
+    contract = Path(__file__).parents[1] / "data" / "nma_figure_table_spec_template.json"
+    project_contract = tmp_path / "data" / "nma_figure_table_spec_template.json"
+    project_contract.parent.mkdir(parents=True, exist_ok=True)
+    project_contract.write_bytes(contract.read_bytes())
     report_a = _write(tmp_path, "verification/reviews/a.md", "pass A")
     report_b = _write(tmp_path, "verification/reviews/b.md", "pass B")
 
@@ -338,6 +360,30 @@ def test_protocol_preflight_rejects_template_and_requires_nma_assumptions():
     protocol["synthesis"]["network_meta_analysis"]["transitivity_assessment"] = ""
     errors = validate_review_protocol(protocol)
     assert any("transitivity_assessment" in error for error in errors)
+
+
+def test_project_protocol_freezes_one_authoritative_figure_table_contract(tmp_path):
+    protocol_path = tmp_path / "review_protocol.json"
+    protocol_path.write_text(_valid_protocol_text(), encoding="utf-8")
+    contract_source = Path(__file__).parents[1] / "data" / "nma_figure_table_spec_template.json"
+    contract_path = tmp_path / "data" / "nma_figure_table_spec_template.json"
+    contract_path.parent.mkdir(parents=True, exist_ok=True)
+    contract_path.write_bytes(contract_source.read_bytes())
+
+    assert validate_review_protocol_project_file(protocol_path) == []
+
+    contract_path.write_text(contract_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    errors = validate_review_protocol_project_file(protocol_path)
+    assert any("SHA-256 differs" in error for error in errors)
+
+
+def test_packaged_figure_table_contract_is_byte_identical_to_authoritative_source():
+    root = Path(__file__).parents[1]
+    authoritative = root / "data" / "nma_figure_table_spec_template.json"
+    packaged = root / "sci_nma_agent" / "templates" / "nma_figure_table_spec_template.json"
+    assert hashlib.sha256(authoritative.read_bytes()).digest() == hashlib.sha256(
+        packaged.read_bytes()
+    ).digest()
 
 
 def test_synthesis_templates_default_primary_engine_to_r():
@@ -1813,6 +1859,15 @@ def test_resume_hands_off_unsubmitted_in_progress_attempt_without_resetting_it(t
     assert handoff["to_executor"] == "replacement-agent"
     assert handoff["to_session"] == "replacement-session"
     protocol_artifact = _write(tmp_path, "review_protocol.json", _valid_protocol_text())
+    project_contract = tmp_path / "data" / "nma_figure_table_spec_template.json"
+    project_contract.parent.mkdir(parents=True, exist_ok=True)
+    project_contract.write_bytes(
+        (
+            Path(__file__).parents[1]
+            / "data"
+            / "nma_figure_table_spec_template.json"
+        ).read_bytes()
+    )
     source_log = _write(
         tmp_path,
         "verification/methods_source_log.json",
@@ -1821,11 +1876,13 @@ def test_resume_hands_off_unsubmitted_in_progress_attempt_without_resetting_it(t
     with pytest.raises(StageLedgerError, match="does not own active stage"):
         ledger.submit(
             "protocol", "protocol-agent", "protocol-agent-session-1",
-            [protocol_artifact, source_log], "Stale executor submission",
+            [protocol_artifact, source_log, "data/nma_figure_table_spec_template.json"],
+            "Stale executor submission",
         )
     submitted = ledger.submit(
         "protocol", "replacement-agent", "replacement-session",
-        [protocol_artifact, source_log], "Protocol submitted by handoff executor",
+        [protocol_artifact, source_log, "data/nma_figure_table_spec_template.json"],
+        "Protocol submitted by handoff executor",
     )
     attempt = submitted["stages"]["protocol"]["attempts"][0]
     assert attempt["executor"] == "protocol-agent"

@@ -5,9 +5,15 @@ description: Reliable Cochrane Library advanced search via the real advanced-sea
 
 # Cochrane Advanced Search
 
-Use the built-in CDP browser as the primary search transport and Chrome
-DevTools as the fallback. Preserve the selected browser/session route with
-the query and result counts.
+Use the Codex built-in CDP browser first. Chrome DevTools is only a documented
+fallback when the built-in browser is unavailable or cannot perform a
+required operation. Follow the project
+[`BROWSER_ROUTE_POLICY.md`](../../docs/BROWSER_ROUTE_POLICY.md) and preserve
+the selected browser/session route with the query and result counts.
+When a project search queue is active, execute only its first unchecked
+native line, persist that line's count and locator with
+`search-queue record-line`, and resume from `search-queue checklist` after
+interruption. Do not batch-run remaining lines or databases.
 
 Do not treat Cochrane advanced search as a simple query-string page. The stable path is the real advanced-search form plus the results portlet.
 
@@ -88,7 +94,9 @@ Capture at least:
 
 - For exact counts, trust the tab counts from the advanced-search result surface, not a simplified hand-built GET URL.
 - Validate that the tab counts remain stable after switching `selectedType`.
-- If the page shows an authentication wall, CAPTCHA, or access block, stop and ask the user to resolve it in Chrome.
+- If the page shows an authentication wall, CAPTCHA, or access block, pause
+  the current task and ask the user to resolve it in the same built-in browser
+  session.
 - If using external HTTP requests instead of in-browser fetch, transient TLS EOF errors can occur; retry with conservative pacing and record any SSL workarounds explicitly.
 
 ## Limitation To Record

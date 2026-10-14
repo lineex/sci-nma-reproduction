@@ -7,6 +7,11 @@ The values are copied into `review_protocol.json` under
 `execution_defaults` when a project is initialized and are checked during
 protocol preflight.
 
+For route priority across all bundled database helper skills, see
+[`BROWSER_ROUTE_POLICY.md`](BROWSER_ROUTE_POLICY.md). It applies to search,
+session checks, paging, parsing, details, citation export, and full-text
+handoff.
+
 ## Required Defaults
 
 | Function | Primary | Fallback | Required behavior |
@@ -26,8 +31,10 @@ statistics: R (no silent Python production fallback)
 
 ## Operational Rules
 
-1. Search agents must select the built-in CDP browser before opening or
-   attaching to a Chrome DevTools session. A search may use database APIs for
+1. Every browser-facing skill in the project must select the Codex built-in
+   CDP browser before opening or attaching to a Chrome DevTools session. This
+   includes search, session checks, paging, parsing, details, citation export,
+   and full-text handoff. A search may use database APIs for
    export or independent checking only when the approved protocol records that
    route; an API response does not silently replace the required browser
    session evidence.

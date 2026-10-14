@@ -151,6 +151,9 @@ def _validate_queue(queue: Mapping[str, Any]) -> None:
     tasks = queue.get("tasks")
     if not isinstance(tasks, list) or not tasks:
         raise SearchQueueError("search queue must contain a non-empty tasks list")
+    execution_policy = queue.get("execution_policy")
+    if not isinstance(execution_policy, Mapping):
+        raise SearchQueueError("search queue execution_policy must be an object")
     active = [
         task for task in tasks
         if isinstance(task, Mapping) and task.get("status") in ACTIVE_STATES
@@ -233,6 +236,58 @@ def _validate_queue(queue: Mapping[str, Any]) -> None:
             raise SearchQueueError(
                 f"tasks[{index}].final_combination_line_number is invalid"
             )
+        if (
+            isinstance(execution_policy, Mapping)
+            and execution_policy.get("line_checkpoints_required") is True
+        ):
+            checkpoints = task.get("line_checkpoints")
+            if not isinstance(checkpoints, list) or len(checkpoints) != len(line_plan):
+                raise SearchQueueError(
+                    f"tasks[{index}].line_checkpoints must cover every strategy line"
+                )
+            pending_seen = False
+            for checkpoint_index, (line, checkpoint) in enumerate(
+                zip(line_plan, checkpoints)
+            ):
+                if not isinstance(checkpoint, Mapping):
+                    raise SearchQueueError(
+                        f"tasks[{index}].line_checkpoints[{checkpoint_index}] must be an object"
+                    )
+                if checkpoint.get("line_number") != line["line_number"]:
+                    raise SearchQueueError(
+                        f"tasks[{index}].line_checkpoints must follow strategy line order"
+                    )
+                checkpoint_status = checkpoint.get("status")
+                if checkpoint_status not in {"pending", "completed"}:
+                    raise SearchQueueError(
+                        f"tasks[{index}].line_checkpoints[{checkpoint_index}].status is invalid"
+                    )
+                if checkpoint_status == "pending":
+                    pending_seen = True
+                    if (
+                        checkpoint.get("result_count") is not None
+                        or checkpoint.get("history_or_query_locator") is not None
+                        or checkpoint.get("completed_at") is not None
+                    ):
+                        raise SearchQueueError(
+                            f"tasks[{index}].pending line checkpoint contains completion data"
+                        )
+                else:
+                    if pending_seen:
+                        raise SearchQueueError(
+                            f"tasks[{index}].line checkpoints must be completed in order"
+                        )
+                    count = checkpoint.get("result_count")
+                    if (
+                        not isinstance(count, int)
+                        or isinstance(count, bool)
+                        or count < 0
+                        or not str(checkpoint.get("history_or_query_locator", "")).strip()
+                        or not str(checkpoint.get("completed_at", "")).strip()
+                    ):
+                        raise SearchQueueError(
+                            f"tasks[{index}].completed line checkpoint lacks count or locator"
+                        )
         if task.get("status") == "running":
             if not str(task.get("executor_session", "")).strip():
                 raise SearchQueueError(
@@ -318,6 +373,22 @@ def _next_task(queue: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _validate_task_source_hashes(project_dir: Path, task: Mapping[str, Any]) -> None:
+    for artifact_field, hash_field in (
+        ("strategy_artifact", "strategy_sha256"),
+        ("execution_artifact", "execution_query_sha256"),
+    ):
+        relative = task.get(artifact_field)
+        if not _is_safe_relative_path(relative):
+            raise SearchQueueError(f"{artifact_field} must be a project-relative path")
+        artifact = _project_file(project_dir, relative)
+        if not artifact.is_file():
+            raise SearchQueueError(f"queued search artifact is missing: {relative}")
+        expected = str(task.get(hash_field, "")).casefold()
+        if not SHA256_RE.fullmatch(expected) or file_sha256(artifact) != expected:
+            raise SearchQueueError(f"{artifact_field} hash is stale: {relative}")
+
+
 def create_search_queue(
     *,
     pico: Mapping[str, Any],
@@ -371,6 +442,16 @@ def create_search_queue(
                     }
                     for line in item["native_lines"]
                 ],
+                "line_checkpoints": [
+                    {
+                        "line_number": line["line_number"],
+                        "status": "pending",
+                        "result_count": None,
+                        "history_or_query_locator": None,
+                        "completed_at": None,
+                    }
+                    for line in item["native_lines"]
+                ],
                 "component_line_numbers": [
                     line["line_number"]
                     for line in item["native_lines"]
@@ -412,6 +493,8 @@ def create_search_queue(
             "browser_route_order": ["cdp_builtin_browser", "chrome_devtools"],
             "verification_checkpoint": "pause_and_resume_same_session",
             "parallel_browser_calls": False,
+            "advance_requires_user_confirmation": True,
+            "line_checkpoints_required": True,
         },
         "tasks": tasks,
         "events": [],
@@ -474,10 +557,13 @@ def validate_search_queue_file(
         or policy.get("mode") != "strict_serial"
         or policy.get("max_active_tasks") != 1
         or policy.get("parallel_browser_calls") is not False
+        or policy.get("advance_requires_user_confirmation") is not True
+        or policy.get("line_checkpoints_required") is not True
     ):
         errors.append(
             "search queue execution_policy must be strict_serial with "
-            "max_active_tasks=1 and parallel_browser_calls=false"
+            "max_active_tasks=1, parallel_browser_calls=false, "
+            "line_checkpoints_required=true, and advance_requires_user_confirmation=true"
         )
 
     for task in queue.get("tasks", []):
@@ -543,6 +629,15 @@ def start_search_task(
                 f"search task {active['task_id']} is already running; "
                 "complete, pause, or fail it before starting another"
             )
+        policy = queue.get("execution_policy", {})
+        if (
+            not isinstance(policy, Mapping)
+            or policy.get("line_checkpoints_required") is not True
+        ):
+            raise SearchQueueError(
+                "this queue predates durable per-line checkpoints; preserve it and "
+                "reconcile or initialize a checkpoint-enabled queue before searching"
+            )
         if browser_route not in SUPPORTED_BROWSER_ROUTES:
             raise SearchQueueError(
                 "browser_route must be cdp_builtin_browser or chrome_devtools"
@@ -557,6 +652,41 @@ def start_search_task(
         if task["status"] != "pending":
             raise SearchQueueError(
                 f"task {task['task_id']} is {task['status']}; resume it explicitly before retrying"
+            )
+        project = Path(str(queue.get("project_dir", ""))).expanduser().resolve()
+        _validate_task_source_hashes(project, task)
+        if (
+            queue.get("execution_policy", {}).get("advance_requires_user_confirmation") is True
+            and task.get("ordinal", 1) > 1
+        ):
+            previous = next(
+                (
+                    item for item in queue.get("tasks", [])
+                    if item.get("ordinal") == task.get("ordinal", 0) - 1
+                ),
+                None,
+            )
+            confirmation = task.get("user_confirmation")
+            if (
+                previous is None
+                or previous.get("status") != "completed"
+                or not isinstance(confirmation, Mapping)
+                or confirmation.get("previous_task_id") != previous.get("task_id")
+                or str(confirmation.get("actor", "")).casefold() != "user"
+            ):
+                raise SearchQueueError(
+                    "user confirmation is required before starting the next database"
+                )
+            _validate_task_source_hashes(project, previous)
+            previous_evidence = previous.get("evidence")
+            if not isinstance(previous_evidence, Mapping):
+                raise SearchQueueError(
+                    "the preceding database has no saved search evidence"
+                )
+            _validate_evidence(
+                previous_evidence,
+                project_dir=project,
+                task=previous,
             )
         task["status"] = "running"
         task["executor_session"] = session
@@ -607,6 +737,138 @@ def resume_search_task(
             session=session,
         )
         return deepcopy(task)
+
+    return _mutate(Path(queue_path), mutate)
+
+
+def record_search_line_count(
+    queue_path: Union[str, Path],
+    *,
+    task_id: str,
+    session: str,
+    actor: str,
+    line_number: int,
+    result_count: int,
+    history_or_query_locator: str,
+) -> Dict[str, Any]:
+    """Persist one line's result count before allowing the next line to run."""
+    if not isinstance(line_number, int) or isinstance(line_number, bool) or line_number < 1:
+        raise SearchQueueError("line_number must be a positive integer")
+    if (
+        not isinstance(result_count, int)
+        or isinstance(result_count, bool)
+        or result_count < 0
+    ):
+        raise SearchQueueError("result_count must be a non-negative integer")
+    locator = str(history_or_query_locator).strip()
+    if not locator:
+        raise SearchQueueError("history_or_query_locator is required")
+    if not str(actor).strip():
+        raise SearchQueueError("actor is required")
+
+    def mutate(queue: Dict[str, Any]) -> Dict[str, Any]:
+        task = _require_running_task(queue, task_id=task_id, session=session)
+        checkpoints = task.get("line_checkpoints")
+        if not isinstance(checkpoints, list):
+            raise SearchQueueError(
+                "this legacy queue does not persist per-line checkpoints"
+            )
+        next_checkpoint = next(
+            (entry for entry in checkpoints if entry.get("status") == "pending"),
+            None,
+        )
+        if next_checkpoint is None:
+            raise SearchQueueError("all strategy lines already have saved counts")
+        if next_checkpoint["line_number"] != line_number:
+            raise SearchQueueError(
+                f"record line {next_checkpoint['line_number']} next; "
+                f"line {line_number} is out of order"
+            )
+        next_checkpoint["status"] = "completed"
+        next_checkpoint["result_count"] = result_count
+        next_checkpoint["history_or_query_locator"] = locator
+        next_checkpoint["completed_at"] = now_iso()
+        line = task["line_plan"][line_number - 1]
+        _append_event(
+            queue,
+            action="search_line_count_recorded",
+            task=task,
+            actor=actor,
+            session=session,
+            details={
+                "line_number": line_number,
+                "line_type": line["line_type"],
+                "result_role": line["result_role"],
+                "result_count": result_count,
+                "history_or_query_locator": locator,
+            },
+        )
+        return deepcopy(next_checkpoint)
+
+    return _mutate(Path(queue_path), mutate)
+
+
+def confirm_next_search_task(
+    queue_path: Union[str, Path],
+    *,
+    actor: str,
+    session: str,
+) -> Dict[str, Any]:
+    """Record the user's explicit decision to advance to the next database."""
+    def mutate(queue: Dict[str, Any]) -> Dict[str, Any]:
+        if _active_task(queue) is not None:
+            raise SearchQueueError("finish the active database before confirming the next")
+        if queue.get("execution_policy", {}).get("advance_requires_user_confirmation") is not True:
+            raise SearchQueueError("this legacy queue does not require explicit database confirmation")
+        next_task = _next_task(queue)
+        if next_task is None or next_task.get("status") != "pending":
+            raise SearchQueueError("there is no pending next database to confirm")
+        previous = next(
+            (
+                item for item in queue.get("tasks", [])
+                if item.get("ordinal") == next_task.get("ordinal", 0) - 1
+            ),
+            None,
+        )
+        if previous is None or previous.get("status") != "completed":
+            raise SearchQueueError("the preceding database must be completed before confirmation")
+        project = Path(str(queue.get("project_dir", ""))).expanduser().resolve()
+        _validate_task_source_hashes(project, previous)
+        previous_evidence = previous.get("evidence")
+        if not isinstance(previous_evidence, Mapping):
+            raise SearchQueueError("the preceding database has no saved search evidence")
+        _validate_evidence(
+            previous_evidence,
+            project_dir=project,
+            task=previous,
+        )
+        confirmation_actor = str(actor).strip()
+        confirmation_session = str(session).strip()
+        if not confirmation_actor or not confirmation_session:
+            raise SearchQueueError("confirmation actor and session are required")
+        if confirmation_actor.casefold() != "user":
+            raise SearchQueueError(
+                "the continuation confirmation must be recorded with actor 'user'"
+            )
+        confirmation = {
+            "actor": confirmation_actor,
+            "session": confirmation_session,
+            "confirmed_at": now_iso(),
+            "previous_task_id": previous["task_id"],
+        }
+        next_task["user_confirmation"] = confirmation
+        _append_event(
+            queue,
+            action="user_confirmed_next_database",
+            task=next_task,
+            actor=confirmation_actor,
+            session=confirmation_session,
+            details={
+                "previous_task_id": previous["task_id"],
+                "next_task_id": next_task["task_id"],
+            },
+        )
+        return deepcopy(next_task)
 
     return _mutate(Path(queue_path), mutate)
 
@@ -704,6 +966,7 @@ def _validate_evidence(
         raise SearchQueueError("search evidence database does not match the task")
     if task.get("browser_route") and route != task.get("browser_route"):
         raise SearchQueueError("search evidence browser_route does not match the claimed route")
+    _validate_task_source_hashes(project_dir, task)
     for field in ("strategy_sha256", "execution_query_sha256"):
         expected = str(task.get(field, "")).casefold()
         observed = str(evidence.get(field, "")).casefold()
@@ -815,6 +1078,39 @@ def _validate_evidence(
         raise SearchQueueError(
             "final_combination_locator and final_combination_line_number are required"
         )
+    checkpoints = task.get("line_checkpoints")
+    if isinstance(checkpoints, list):
+        completed_checkpoints = {
+            checkpoint["line_number"]: checkpoint
+            for checkpoint in checkpoints
+            if isinstance(checkpoint, Mapping)
+            and checkpoint.get("status") == "completed"
+        }
+        if len(completed_checkpoints) != len(task.get("line_plan", [])):
+            raise SearchQueueError(
+                "every strategy line must have a saved count checkpoint before completion"
+            )
+        for line in line_counts:
+            checkpoint = completed_checkpoints.get(line["line_number"])
+            if checkpoint is None or (
+                checkpoint["result_count"] != line["result_count"]
+                or checkpoint["history_or_query_locator"]
+                != line["history_or_query_locator"]
+            ):
+                raise SearchQueueError(
+                    f"component line {line['line_number']} evidence differs from its saved checkpoint"
+                )
+        final_checkpoint = completed_checkpoints.get(
+            task["final_combination_line_number"]
+        )
+        if final_checkpoint is None or (
+            final_checkpoint["result_count"] != final_total
+            or final_checkpoint["history_or_query_locator"]
+            != evidence["final_combination_locator"]
+        ):
+            raise SearchQueueError(
+                "final combination evidence differs from its saved line checkpoint"
+            )
     for field in ("search_date", "timezone"):
         if not str(evidence.get(field, "")).strip():
             raise SearchQueueError(f"search evidence {field} is required")
@@ -884,4 +1180,91 @@ def queue_status(queue_path: Union[str, Path]) -> Dict[str, Any]:
         "next_task": deepcopy(next_task) if next_task else None,
         "tasks": deepcopy(queue["tasks"]),
     }
+
+
+def render_search_checklist(queue_path: Union[str, Path]) -> str:
+    """Render the durable queue state as a human-readable, resumable to-do list."""
+    queue = load_search_queue(queue_path)
+    lines = [
+        f"# Search checklist — {queue['queue_id']}",
+        "",
+        "- Browser execution: serial; at most one database task at a time.",
+        "- Continuation: the next database requires an explicit user confirmation.",
+        "",
+    ]
+    policy = queue.get("execution_policy", {})
+    if (
+        not isinstance(policy, Mapping)
+        or policy.get("line_checkpoints_required") is not True
+    ):
+        lines.extend(
+            [
+                "> **Queue migration required:** this saved queue predates durable "
+                "per-line checkpoints. Preserve its current state and reconcile "
+                "the completed line counts before continuing.",
+                "",
+            ]
+        )
+    tasks = queue["tasks"]
+    for index, task in enumerate(tasks):
+        status = task["status"]
+        task_mark = "x" if status == "completed" else " "
+        lines.append(
+            f"## [{task_mark}] {task['ordinal']}. {task['database']} — {status}"
+        )
+        lines.append(
+            f"- Strategy: `{task['strategy_artifact']}` "
+            f"(sha256 `{task['strategy_sha256']}`)"
+        )
+        checkpoints = task.get("line_checkpoints", [])
+        lines.append("- Query-line checklist:")
+        for plan_line, checkpoint in zip(task["line_plan"], checkpoints):
+            mark = "x" if checkpoint.get("status") == "completed" else " "
+            label = (
+                "final combination"
+                if plan_line["result_role"] == "final_combination"
+                else (
+                    f"{plan_line['line_type']}: "
+                    f"{plan_line.get('concept_block') or 'database line'}"
+                )
+            )
+            detail = ""
+            if checkpoint.get("status") == "completed":
+                detail = (
+                    f" — {checkpoint['result_count']} hits; "
+                    f"{checkpoint['history_or_query_locator']}"
+                )
+            lines.append(
+                f"  - [{mark}] Line {plan_line['line_number']}: {label}{detail}"
+            )
+        if status == "completed":
+            evidence = task.get("evidence") or {}
+            lines.append(
+                "- [x] Final export/history verified: "
+                f"{evidence.get('final_records_exported')} records; "
+                f"`{evidence.get('final_export_path')}`; "
+                f"`{evidence.get('final_history_path')}`"
+            )
+            if index + 1 < len(tasks):
+                next_task = tasks[index + 1]
+                confirmation = next_task.get("user_confirmation")
+                if (
+                    isinstance(confirmation, Mapping)
+                    and confirmation.get("previous_task_id") == task["task_id"]
+                ):
+                    lines.append(
+                        "- [x] User confirmed continuation "
+                        f"({confirmation.get('confirmed_at')}; "
+                        f"session `{confirmation.get('session')}`)"
+                    )
+                else:
+                    lines.append(
+                        "- [ ] Present this database report and wait for the user's "
+                        "explicit confirmation before starting the next database."
+                    )
+        elif task.get("last_error"):
+            lines.append(f"- Blocker/checkpoint: {task['last_error']}")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
 

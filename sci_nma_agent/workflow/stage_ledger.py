@@ -18,7 +18,7 @@ from .protocol_validation import (
     validate_full_text_screening_manifest_file,
     validate_full_text_retrieval_manifest_file,
     validate_methods_source_log_for_protocol_file,
-    validate_review_protocol_file,
+    validate_review_protocol_project_file,
     validate_submission_package_manifest_file,
     validate_study_report_map_file,
     validate_title_abstract_screening_manifest_file,
@@ -512,7 +512,7 @@ class AgentStageLedger:
                 ]
                 if len(protocol_paths) != 1:
                     raise StageLedgerError("Protocol stage must submit exactly one review_protocol.json artifact")
-                protocol_errors = validate_review_protocol_file(protocol_paths[0])
+                protocol_errors = validate_review_protocol_project_file(protocol_paths[0])
                 if protocol_errors:
                     raise StageLedgerError("Protocol validation failed: " + "; ".join(protocol_errors))
                 source_log_paths = [
@@ -527,6 +527,17 @@ class AgentStageLedger:
                 )
                 if source_log_errors:
                     raise StageLedgerError("Methods-source log validation failed: " + "; ".join(source_log_errors))
+                contract_path = json.loads(protocol_paths[0].read_text(encoding="utf-8"))[
+                    "figure_table_contract"
+                ]["contract_path"]
+                contract_records = [
+                    record for record in artifact_manifest
+                    if record["path"] == contract_path
+                ]
+                if len(contract_records) != 1:
+                    raise StageLedgerError(
+                        "Protocol stage must submit the single protocol-declared figure/table contract file"
+                    )
             elif stage_id == "deduplication":
                 map_paths = [
                     self.project_dir / record["path"]

@@ -11,9 +11,22 @@ effect estimates, model, or figure contents as new-review data.
    record matching chapter-level Handbook update/access dates and tutorial provenance, then freeze the question,
    eligibility, outcomes, synthesis decisions, registration status, and
    amendment process before screening.
-2. Execute database-specific searches and peer review through the built-in CDP
-   browser first, with Chrome DevTools as the fallback. Preserve exact
+2. Execute database-specific searches and peer review through the Codex
+   built-in CDP browser first. Chrome DevTools is a documented fallback only
+   when the built-in browser is unavailable or cannot perform a required
+   operation; record the reason. Follow
+   [`BROWSER_ROUTE_POLICY.md`](../../../docs/BROWSER_ROUTE_POLICY.md). Preserve exact
    strategies, dates, counts, browser/session route, exports, and provenance.
+   Follow
+   [`OUTPUT_CONTRACT_AND_STEPWISE_SEARCH.md`](../../../docs/OUTPUT_CONTRACT_AND_STEPWISE_SEARCH.md):
+   execute one database at a time, show its completed results to the user,
+   and wait for explicit confirmation before starting the next database.
+   The search queue stores order and evidence; it does not auto-advance.
+   Within each database, treat every native strategy line as a checklist item:
+   execute the first unchecked line only, persist its count and history/query
+   locator with `search-queue record-line`, then verify the saved checkpoint
+   before proceeding. After interruption, call `search-queue checklist` and
+   resume at the first unchecked line instead of relying on chat context.
    Build intervention searches with the sensitivity-first PICOS rule: P and I
    are required; C and O are omitted unless the protocol explicitly enables
    them with a restriction rationale. For diagnostic, prognostic, and other
@@ -28,6 +41,8 @@ effect estimates, model, or figure contents as new-review data.
    Fill one row per database search line in
    `reporting/supplementary/search_strategy_supplement.csv`; the row must be
    sufficient to rerun the search without reading the manuscript narrative.
+   Component lines record counts only; export detailed records only from the
+   final combined query.
 3. Deduplicate while retaining source records and study/report links.
 4. Screen titles/abstracts and full texts with separate reviewer decisions,
    then document adjudication and full-text exclusion reasons.
@@ -67,11 +82,14 @@ effect estimates, model, or figure contents as new-review data.
    `reporting/supplementary_materials_manifest.json`,
    `reporting/submission_package_checklist.csv`, the PRISMA 2020/PRISMA-S
    checklists, manuscript, cover letter, and reproducibility README. Every
-   reported number must resolve to an approved upstream manifest, table,
+   declared figure/table must pass the human item-by-item format audit in
+   `reporting/figure_table_format_audit.csv`; do not add, remove, or redesign
+   contract items. Every reported number must resolve to an approved upstream manifest, table,
    figure, or locked R result artifact. Submit the complete package to the
-   reporting stage for two independent approvals. The search stage itself uses
-   one independent review after the executor; evidence-judgement stages retain
-   paired decisions and their configured two-reviewer gates.
+   reporting stage for two independent approvals. Search uses one independent
+   reviewer after the executor, not two independent reviewers;
+   evidence-judgement stages retain their paired decisions and configured
+   review gates.
 
 ## Stage Control
 

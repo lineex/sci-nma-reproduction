@@ -5,14 +5,25 @@ description: Reliable Web of Science search through the built-in CDP browser, wi
 
 # Web Of Science Search
 
-Use the built-in CDP browser as the primary search transport and Chrome
-DevTools as the fallback. The Clarivate Starter API may be used for a
+Use the Codex built-in CDP browser as the primary search transport. Chrome
+DevTools is a documented fallback only when the built-in browser is
+unavailable or cannot perform a required operation. Follow the project
+[`BROWSER_ROUTE_POLICY.md`](../../docs/BROWSER_ROUTE_POLICY.md). The Clarivate
+Starter API may be used for a
 protocol-recorded export or independent check after the browser route; it is
 not the default transport for a new review.
+For an active project search queue, run only the first unchecked native line,
+persist its count and history/query locator with `search-queue record-line`,
+and resume from `search-queue checklist` after interruption. Do not batch-run
+remaining lines or databases.
 
 ## Browser-First Path
 
-Start in the authenticated built-in CDP browser and retain the search/session evidence. If that session is unavailable, use Chrome DevTools. After the browser search is recorded, an optional Clarivate Starter API export or independent check may use `https://api.clarivate.com/apis/wos-starter/v1/documents` with:
+Start in the authenticated built-in CDP browser and retain the search/session
+evidence. If that session is unavailable or cannot perform a required
+operation, document the limitation before using Chrome DevTools. After the
+browser search is recorded, an optional Clarivate Starter API export or
+independent check may use `https://api.clarivate.com/apis/wos-starter/v1/documents` with:
 - `X-ApiKey`
 - `db=WOS`
 - `limit=50`

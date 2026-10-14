@@ -451,6 +451,7 @@ def _validate_reporting_package_protocol(protocol: Dict[str, Any], errors: List[
         return
     required_text = (
         "package_manifest_path",
+        "figure_table_format_audit_path",
         "submission_checklist_path",
         "reproducibility_readme_path",
         "manuscript_path",
@@ -472,6 +473,28 @@ def _validate_reporting_package_protocol(protocol: Dict[str, Any], errors: List[
         or not {"PRISMA 2020", "PRISMA-S"}.issubset({str(item) for item in standards})
     ):
         errors.append("reporting_package.reporting_standards must include PRISMA 2020 and PRISMA-S")
+
+
+def _validate_project_figure_table_contract(
+    protocol: Dict[str, Any],
+    project_dir: Union[str, Path],
+) -> List[str]:
+    """Check the one authoritative project format file against its protocol hash."""
+    contract = protocol.get("figure_table_contract", {})
+    contract_path = contract.get("contract_path")
+    if not _is_safe_project_relative_path(contract_path):
+        return ["figure_table_contract.contract_path must be project-relative"]
+    root = Path(project_dir).expanduser().resolve()
+    try:
+        source = (root / Path(*PurePosixPath(contract_path).parts)).resolve()
+        source.relative_to(root)
+    except ValueError:
+        return ["figure_table_contract.contract_path escapes the review project"]
+    if not source.is_file():
+        return ["Frozen figure/table contract is missing from the review project"]
+    if _sha256(source) != str(contract.get("contract_sha256", "")).casefold():
+        return ["Frozen figure/table contract SHA-256 differs from the protocol"]
+    return []
 
 
 def validate_submission_package_manifest(
@@ -1643,8 +1666,23 @@ def validate_review_protocol(protocol: Dict[str, Any]) -> List[str]:
         "certainty.downgrade_upgrade_rules",
         "agent_governance.human_accountable_lead",
         "figure_table_contract.contract_path",
+        "figure_table_contract.contract_sha256",
     ):
         _need_text(protocol, path, errors)
+
+    if _value(protocol, "figure_table_contract.format_profile") != "user_fixed":
+        errors.append("figure_table_contract.format_profile must remain user_fixed")
+    if not _SHA256.fullmatch(
+        str(_value(protocol, "figure_table_contract.contract_sha256") or "").casefold()
+    ):
+        errors.append("figure_table_contract.contract_sha256 must be a SHA-256 hash")
+    for path in (
+        "figure_table_contract.contract_path",
+        "reporting_package.figure_table_format_audit_path",
+    ):
+        value = _value(protocol, path)
+        if _is_filled(value) and not _is_safe_project_relative_path(value):
+            errors.append(f"{path} must be a safe project-relative path")
 
     for path in ("search.search_strategy_supplement_path", "search.search_strategy_template"):
         value = _value(protocol, path)
@@ -2333,3 +2371,15 @@ def validate_review_protocol_file(path: Union[str, Path]) -> List[str]:
     except (OSError, json.JSONDecodeError) as exc:
         return [f"Unable to read review protocol JSON: {exc}"]
     return validate_review_protocol(protocol)
+
+
+def validate_review_protocol_project_file(path: Union[str, Path]) -> List[str]:
+    """Validate protocol structure and its immutable project format contract."""
+    protocol_path = Path(path).expanduser().resolve()
+    errors = validate_review_protocol_file(protocol_path)
+    try:
+        protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return errors
+    errors.extend(_validate_project_figure_table_contract(protocol, protocol_path.parent))
+    return errors

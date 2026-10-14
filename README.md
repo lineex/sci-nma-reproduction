@@ -59,8 +59,16 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
    - Component/native lines are executed for result counts only; the final
      combination line supplies the authoritative total and the full-detail
      citation export used for screening.
+   - The queue persists each strategy line as an ordered checkpoint; use
+     `search-queue checklist` after interruption and `record-line` to save each
+     count/locator before continuing.
+   - `sci-nma-agent init` creates a hierarchical `verification/research_workplan.json`
+     and append-only `workplan_events.jsonl`; activation resumes the first
+     unchecked leaf/checkpoint instead of relying on conversation memory.
    - Verification, SSO, and recoverable browser errors pause the current task;
      the same task resumes after the checkpoint with its history/export evidence.
+   - After each database report is complete, the executor shows the results
+     and waits for user confirmation before starting the next database.
    - The stage ledger revalidates the queue and all evidence hashes before
      search-stage release. See [`docs/SEARCH_QUEUE.md`](docs/SEARCH_QUEUE.md).
    - Search-stage release uses one independent review after execution;
@@ -86,7 +94,7 @@ An industrial-grade autonomous agent framework engineered to reproduce, synthesi
    - Native parsers for PubMed `.nbib`/`.medline`, Embase/Cochrane `.ris`, Web of Science `.txt`/`.ciw`, and Cochrane `.csv`.
 
 2. **Browser Institutional Session Reuse (机构会话复用)**:
-   - New reviews use the built-in CDP browser first and fall back to a Chrome DevTools session when the built-in browser is unavailable. Both routes reuse the authenticated university/hospital SSO or WebVPN session and preserve search-session evidence.
+   - Every browser-facing skill uses the Codex built-in CDP browser first, including login/session checks, paging, parsing, record details, citation export, and full-text handoff. Chrome DevTools is a documented fallback only when the built-in browser is unavailable or lacks a required operation; record the specific reason and preserve the authenticated university/hospital SSO or WebVPN session evidence. See [`docs/BROWSER_ROUTE_POLICY.md`](docs/BROWSER_ROUTE_POLICY.md).
    - The project default order is recorded in `review_protocol.json`: `cdp_builtin_browser -> chrome_devtools`. The optional Chrome DevTools fallback must use a dedicated, non-default profile and a loopback-only endpoint:
      `chrome.exe --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --user-data-dir="%LOCALAPPDATA%\sci-nma-agent\chrome-cdp-profile"`
      (Chrome 136+ no longer honors remote debugging against the default profile.)
@@ -219,8 +227,11 @@ sci-nma-agent search-queue start \
   --browser-route cdp_builtin_browser
 ```
 
-Complete each task only after its exact-as-run database history and export are
-written and hash-bound; then claim the next ordinal. Detailed pause/resume and
+Render `search-queue checklist`, start only the first unresolved database, and
+record each native line with `search-queue record-line` before executing the
+next. Complete the task only after its exact-as-run history and full-record
+export are written and hash-bound; report results and wait for explicit user
+confirmation before starting the next database. Detailed pause/resume and
 evidence fields are documented in [`docs/SEARCH_QUEUE.md`](docs/SEARCH_QUEUE.md).
 
 The search generator uses a sensitivity-first PICOS policy for intervention
@@ -293,12 +304,14 @@ The framework strictly enforces the **Anti-Shortcut Protocol**: Every single pha
 [`docs/COCHRANE_AGENT_REQUIREMENTS.md`](docs/COCHRANE_AGENT_REQUIREMENTS.md) 和
 [`agents/STAGE_METHOD_MATRIX.md`](agents/STAGE_METHOD_MATRIX.md)。
 
-- 按 Cochrane Handbook 与项目方案依次通过 11 个门：方案、检索、去重关联、题录初筛、全文获取、全文资格、数据提取、偏倚风险、综合、证据确定性、报告。每门由执行 agent 提交可审查工件，两个独立 reviewer 均通过后才能进入下一门；上游文件哈希变化会阻止旧审批继续生效。
+- 按 Cochrane Handbook 与项目方案依次通过 11 个门：方案、检索、去重关联、题录初筛、全文获取、全文资格、数据提取、偏倚风险、综合、证据确定性、报告。检索阶段由执行者提交工件并经一名独立 reviewer 复核；其他阶段按各自配置的 reviewer 数放行。上游文件哈希变化会阻止旧审批继续生效。
 - Zotero 优先使用 [`cookjohn/zotero-mcp`](https://github.com/cookjohn/zotero-mcp)：读取指定 collection、核对条目和附件、提取全文。安装 MCP 可选依赖并配置 Zotero MCP endpoint 后，可使用直连适配器；无 MCP endpoint 时可使用只读 Zotero 本地数据库/JSON 导出适配器。
-- 新项目的环境与应用默认值集中记录在 [`docs/ENVIRONMENT_AND_APPLICATION_DEFAULTS.md`](docs/ENVIRONMENT_AND_APPLICATION_DEFAULTS.md)：检索为内置 CDP 浏览器优先、Chrome DevTools 备选；全文为 Zotero MCP 优先、本地只读桥接备选；统计为 R。
+- 新项目的环境与应用默认值集中记录在 [`docs/ENVIRONMENT_AND_APPLICATION_DEFAULTS.md`](docs/ENVIRONMENT_AND_APPLICATION_DEFAULTS.md)：所有数据库相关技能的浏览器操作均以内置 CDP 为首选，Chrome DevTools 只用于记录了具体能力缺口的备选；详见 [`docs/BROWSER_ROUTE_POLICY.md`](docs/BROWSER_ROUTE_POLICY.md)。全文为 Zotero MCP 优先、本地只读桥接备选；统计为 R。
 - 全文获取不等于事实缺失。不可获取、附件待确认、全文待审、报告内未报告、所有关联来源均未报告、全文审阅后仍无法判断分别记录；未获取报告进入逐条人工获取队列，用户确认正确的 Zotero 条目/附件后，回到同一阶段续跑。相关状态由阶段账本校验，来源关联图谱通过 SHA-256 固定。
 - 新项目沿用既有图表合同；新流程不会自行改变图表外观。已发表研究的复现及校准只在用户明确提出复现任务时加载。
-- 所有新研究采用“先填表、后生成稿件”的投稿模式：干预型 PICOS 默认用 P+I 查全，C/O 只有在方案写明稳定索引/报告和理由时才启用；语言、日期、人群、文献类型和研究设计限制也不默认启用。检索附件按数据库原生语法逐行记录概念块、过滤器、限制、日期、命中数、导出哈希和复核状态；折叠后的生成式执行检索式单独保存并锁定哈希，默认不直接放入呈现附件，真正运行后还要附上 exact-as-run 历史/导出记录。筛选、全文获取、提取、偏倚风险、统计综合、确定性和报告阶段均有对应模板。必需工件、来源定位、SHA-256 和双 reviewer 审批齐全后，才释放投稿包。
+- 项目图表合同唯一权威文件为 `data/nma_figure_table_spec_template.json`；初始化后先填全项目字段，再将 SHA-256 写入协议并随协议提交审核。生成物不得增删既有图表项目或改版；报告阶段逐项人工核对 `reporting/figure_table_format_audit.csv`，随后由阶段账本记录并复核文件哈希。
+- 检索每次只处理当前数据库：组件行只记数量，最终组合式才导出详细条目。填完当前数据库的检索式、结果及证据后先汇报，等待用户确认再进入下一数据库；不并行、不自动排程。
+- 所有新研究采用“先填表、后生成稿件”的投稿模式：干预型 PICOS 默认用 P+I 查全，C/O 只有在方案写明稳定索引/报告和理由时才启用；语言、日期、人群、文献类型和研究设计限制也不默认启用。检索附件按数据库原生语法逐行记录概念块、过滤器、限制、日期、命中数、导出哈希和复核状态；折叠后的生成式执行检索式单独保存并锁定哈希，默认不直接放入呈现附件，真正运行后还要附上 exact-as-run 历史/导出记录。筛选、全文获取、提取、偏倚风险、统计综合、确定性和报告阶段均有对应模板。必需工件、来源定位、SHA-256 和各阶段规定的独立复核齐全后，才释放投稿包。
 
 ### 强制开源 NMA 图表与 Figure 1 固定范式（v2026-09-21 最新版）
 

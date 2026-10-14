@@ -8,8 +8,14 @@ argument-hint: [search keywords]
 
 Use this skill when the user wants a keyword search in Scopus.
 
-Use the built-in CDP browser first. If it is unavailable, use the Chrome
-DevTools session and record the fallback route in the search artifact.
+Use the Codex built-in CDP browser first. If it is unavailable or cannot
+perform a required operation, use Chrome DevTools only as a documented
+fallback and record the reason and route in the search artifact. Follow the
+project [`BROWSER_ROUTE_POLICY.md`](../../docs/BROWSER_ROUTE_POLICY.md).
+When this is a queued project search, execute only the first unchecked native
+line, save its count and locator with `search-queue record-line`, and continue
+from `search-queue checklist` after interruption; do not batch-run lines or
+databases.
 
 ## Step 1: Ensure Access
 

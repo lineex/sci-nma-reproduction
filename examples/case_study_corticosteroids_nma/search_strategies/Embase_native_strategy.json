@@ -1,0 +1,69 @@
+{
+  "database": "Embase",
+  "framework": "PICOS",
+  "search_policy": {
+    "include_comparator": false,
+    "include_outcome": false,
+    "include_study_design_filter": false,
+    "include_language_limit": false,
+    "include_humans_limit": false,
+    "include_date_limit": false,
+    "include_document_type_limit": false,
+    "outcome_terms_available": true,
+    "comparator_terms_available": true,
+    "comparator_search_rationale": "",
+    "outcome_search_rationale": "",
+    "restriction_rationale": ""
+  },
+  "concept_blocks": {
+    "required": [
+      "P",
+      "I"
+    ],
+    "optional": [
+      "C",
+      "O"
+    ],
+    "included": [
+      "P",
+      "I"
+    ],
+    "omitted_by_default": [
+      "C",
+      "O"
+    ]
+  },
+  "native_lines": [
+    {
+      "line_number": 1,
+      "line_type": "concept",
+      "concept_block": "P",
+      "native_syntax": "('septic shock':ti,ab,kw OR 'septic shock'/exp OR 'severe sepsis':ti,ab,kw OR 'severe sepsis'/exp OR 'sepsis-induced hypotension':ti,ab,kw)"
+    },
+    {
+      "line_number": 2,
+      "line_type": "concept",
+      "concept_block": "I",
+      "native_syntax": "('corticosteroids':ti,ab,kw OR 'corticosteroid'/exp OR 'hydrocortisone':ti,ab,kw OR 'hydrocortisone'/exp OR 'fludrocortisone':ti,ab,kw OR 'fludrocortisone'/exp OR 'methylprednisolone':ti,ab,kw OR 'dexamethasone':ti,ab,kw)"
+    },
+    {
+      "line_number": 3,
+      "line_type": "combination",
+      "concept_block": "ALL",
+      "native_syntax": "#1 AND #2",
+      "interface_set_syntax": true
+    }
+  ],
+  "execution_artifact": "search_strategies/Embase_search.txt",
+  "execution_artifact_sha256": "00cf5d854cc66058190554449d9eeab4f6146dbc69112c1a6f7c401749cdd1b3",
+  "display_final_execution_query": false,
+  "component_execution": "count_only",
+  "final_combination_execution": "export_full_records",
+  "final_export_scope": "final_combination_only",
+  "strategy_status": "planned_generated",
+  "exact_run_record_required": true,
+  "restriction_status": {
+    "applied": [],
+    "not_applied": []
+  }
+}

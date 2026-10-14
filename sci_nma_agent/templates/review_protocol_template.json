@@ -359,10 +359,12 @@
   "figure_table_contract": {
     "format_profile": "user_fixed",
     "contract_path": "data/nma_figure_table_spec_template.json",
-    "change_policy": "Preserve the approved project figure/table format contract unless the project owner explicitly changes it."
+    "contract_sha256": "",
+    "change_policy": "Preserve the approved project figure/table format contract. Any project-owner-approved change requires a new hash, protocol amendment, and fresh review before affected outputs are regenerated."
   },
   "reporting_package": {
     "package_manifest_path": "reporting/supplementary_materials_manifest.json",
+    "figure_table_format_audit_path": "reporting/figure_table_format_audit.csv",
     "submission_checklist_path": "reporting/submission_package_checklist.csv",
     "reproducibility_readme_path": "reporting/reproducibility_readme.md",
     "manuscript_path": "reporting/manuscript.md",

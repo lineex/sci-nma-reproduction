@@ -43,13 +43,19 @@ local bridge as fallback, and R is the default production statistics engine.
 Browser execution is strictly serial: create
 [the search queue](SEARCH_QUEUE.md), claim one database at a time, and retain
 its exact-as-run history/export evidence before starting the next database.
+Every database helper skill follows the
+[browser route policy](BROWSER_ROUTE_POLICY.md): Codex built-in CDP first,
+Chrome DevTools only as a documented fallback.
+Follow [the output contract and stepwise-search procedure](OUTPUT_CONTRACT_AND_STEPWISE_SEARCH.md):
+freeze the completed figure/table contract before generation and wait for user
+confirmation after each database's completed search report.
 
 ## Gated Sequence
 
 | Gate | Work product | Method checkpoints | Release rule |
 |---|---|---|---|
-| 0. Protocol | Question, scope, eligibility, outcomes, methods, registration/amendment log, declared Handbook chapter set, and chapter-level methods source log | Cochrane Ch 1-3; tutorial pp. 3-5 | Operational definitions and decisions are prespecified; source-log chapter IDs exactly match the declared set and URLs; chapter update/access dates and tutorial provenance are recorded; two independent agent reviews approve |
-| 1. Search | Database-specific strategies, serial browser-search queue, component-line counts, final-combination total, and final full-record export | Cochrane Ch 4; tutorial pp. 5-7 | Search can be rerun; restrictions are justified; component lines have counts only; the final combination has the authoritative count and detailed records; at most one browser task is active; every queue task is completed and hash-bound; one independent search review approves release |
+| 0. Protocol | Question, scope, eligibility, outcomes, methods, registration/amendment log, declared Handbook chapter set, chapter-level methods source log, and completed figure/table contract hash | Cochrane Ch 1-3; tutorial pp. 3-5 | Operational decisions and source-log provenance are complete; the filled format contract is hash-bound and submitted as a protocol artifact; two independent protocol reviews approve |
+| 1. Search | Database-specific strategies, serial browser-search queue, persisted line-by-line count checkpoints, final-combination total, and final full-record export | Cochrane Ch 4; tutorial pp. 5-7 | Each native strategy line is completed and checkpointed in order; component lines have counts only; the final combination has the authoritative count and detailed records; one database is active at a time; after each database report, the executor pauses for user confirmation before the next; one independent search reviewer approves the completed stage |
 | 2. Corpus | Imported reports, identifiers, duplicate links, study-report map | Cochrane Ch 4; PRISMA flow | Source records remain intact; duplicate reports are linked at study level |
 | 3. Title/abstract | Two independent reviewer decisions and disagreement log | Cochrane Ch 4; tutorial pp. 6-7 | Paired screening is the project's stricter policy (Cochrane describes duplicate initial screening as ideal, not a minimum); decisions follow protocol; unresolved conflicts go to adjudication |
 | 4. Full-text retrieval | Zotero collection, attachments, retrieval state, hash manifest, manual-acquisition queue | Cochrane Ch 4.6.3 steps 3-6; Ch 4.6.4 for eligibility assessment | Sought/retrieved/not-retrieved totals reconcile; inaccessible reports stay `not_assessed_pending_full_text` and are never coded as fact absence |
@@ -153,6 +159,9 @@ necessary.
 - `reporting/reproducibility_readme.md`, `reporting/manuscript.md`, and
   `reporting/cover_letter.md`: structured starting documents populated only
   after upstream gates approve the evidence.
+- `reporting/figure_table_format_audit.csv`: a human-completed audit for each
+  figure/table item in the frozen contract. The reporting manifest includes
+  this audit; the stage ledger records and rechecks its file hash.
 
 The reporting gate validates this manifest and requires every required path to
 be submitted with the stage. A narrative manuscript is not a substitute for
@@ -175,6 +184,11 @@ their result counts. Do not export or ingest detailed records for those
 component lines. Execute the final combination line separately; its
 `final_search_total` and complete citation export are the authoritative
 database results passed to deduplication and screening.
+
+After recording a database's final count, complete export, history, hashes,
+and supplement rows, present its result summary to the user and wait for
+explicit confirmation before claiming the next database. The queue preserves
+order and evidence; it does not authorize automatic continuation.
 
 ## Preserved Output Contract
 

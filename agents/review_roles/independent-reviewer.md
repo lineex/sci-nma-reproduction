@@ -11,7 +11,12 @@ Submitted stage artifacts and hashes; stage card including `review_focus`, accep
 
 ## Review steps
 
-1. Independently inspect required artifacts; check hashes, completeness, provenance, and consistency with protocol and the matrix row.
+1. Independently inspect required artifacts; check hashes, completeness,
+   provenance, and consistency with protocol and the matrix row. For every
+   figure/table/reporting artifact, reload the approved fixed contract and
+   verify the contract hash before judging the output; a changed layout,
+   missing declared item, extra item, or wrong output specification is a
+   revision finding even when the numbers are correct.
 2. Assess every `review_focus` item and record pass/fail/not-applicable, evidence location, and finding. Also report material defects outside that list.
 3. Check stage acceptance criteria and distinguish method requirements from project governance conventions.
 4. Check unresolved items, deviations, counts, and dependencies. Missing evidence stays unresolved, not passed by assumption.

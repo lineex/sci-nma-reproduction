@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sys
 
@@ -72,7 +73,9 @@ def test_init_copies_gated_manifest_and_methods_source_templates(tmp_path, monke
         "reporting/supplementary/search_strategy_supplement.csv",
         "reporting/supplementary/prisma_2020_abstract_checklist.csv",
         "reporting/submission_package_checklist.csv",
+        "reporting/figure_table_format_audit.csv",
         "reporting/supplementary_materials_manifest.json",
+        "verification/research_workplan.json",
         "reporting/reproducibility_readme.md",
         "reporting/supplementary/risk_of_bias_supplement.csv",
         "reporting/supplementary/synthesis_results_supplement.csv",
@@ -93,6 +96,37 @@ def test_init_copies_gated_manifest_and_methods_source_templates(tmp_path, monke
     assert (tmp_path / "code" / "meta_analysis.R").read_text(encoding="utf-8").startswith(
         "# Doing Meta-Analysis in R integration scaffold"
     )
+    assert protocol["figure_table_contract"]["contract_sha256"] == ""
+    workplan = json.loads(
+        (tmp_path / "verification" / "research_workplan.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert workplan["project_path"] == str(tmp_path.resolve())
+    assert workplan["protocol_sha256"] is None
+    assert [task["task_id"] for task in workplan["tasks"]] == [
+        f"G{index}" for index in range(11)
+    ]
+    events = (tmp_path / "verification" / "workplan_events.jsonl").read_text(
+        encoding="utf-8"
+    ).splitlines()
+    assert len(events) == 1
+    assert json.loads(events[0])["action"] == "workplan_initialized"
+    workplan_event = json.loads(events[0])
+    assert workplan_event["outputs"][0]["sha256"]
+    assert workplan_event["outputs"][0]["sha256"] == hashlib.sha256(
+        (tmp_path / "verification" / "research_workplan.json").read_bytes()
+    ).hexdigest()
+
+    workplan_bytes = (tmp_path / "verification" / "research_workplan.json").read_bytes()
+    monkeypatch.setattr(sys, "argv", ["sci-nma-agent", "init", str(tmp_path)])
+    cli.main()
+    assert (tmp_path / "verification" / "research_workplan.json").read_bytes() == workplan_bytes
+    assert len(
+        (tmp_path / "verification" / "workplan_events.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ) == 1
 
 
 def test_synthesize_cli_keeps_production_release_gate_explicit(tmp_path, monkeypatch, capsys):

@@ -1,6 +1,5 @@
 ---
 name: sci-nma-reproduction
-version: 2026-10-10
 description: Routes new clinical systematic reviews and meta-analyses through a protocol-first Cochrane-based workflow with Zotero full-text provenance. Loads the separate publication-reproduction and calibration module only when the user explicitly asks to reproduce or calibrate an already-published study.
 ---
 
@@ -22,6 +21,55 @@ default. Screening, extraction, and risk-of-bias decisions must retain their
 own paired independent decisions. An agent's recommendation is not a stage
 approval; the orchestrator records the decision after reviewing the configured
 reports.
+
+Search uses an executor and one independent reviewer; it does not use two
+independent reviewers. After each database is complete, report its results and
+wait for the user's confirmation before starting the next database.
+
+Within a database, use the persisted `line_checkpoints` as the authoritative
+to-do list: execute only the first unchecked native query line, record its
+result count and history/query locator with `search-queue record-line`, then
+verify the saved checkpoint before executing the next line. On interruption,
+run `search-queue checklist` and continue at the first unchecked line; never
+rely on conversation memory or silently rerun completed lines. Component lines
+record counts only; the final combination line supplies the detailed export.
+
+Treat the review as a resumable, hierarchical work plan—not a single-turn
+conversation. `sci-nma-agent init` creates the project work-plan scaffold and
+append-only work log defined in
+[`CONTINUOUS_WORKPLAN_AND_RESUME.md`](../../docs/CONTINUOUS_WORKPLAN_AND_RESUME.md).
+After protocol approval, bind its hash and add stable child tasks from the
+approved stage sequence and database queue; never reset an existing plan/log.
+Represent each approved stage as a parent task and each database, report
+batch, analysis decision, and reporting artifact as a stable child task with
+dependencies, acceptance criteria, declared inputs/outputs, owner, and
+checkpoint. Record starts, pauses, resumes, completed operations, reviews,
+blockers, and reruns as durable events tied to artifact paths and SHA-256
+hashes. The stage ledger remains the release authority; the work plan records
+continuity.
+
+At every activation, identify the active project and reload its approved
+protocol, the exact figure/table contract named by that protocol, the work
+plan, stage ledger, and search checklist before continuing. Verify the
+contract and referenced artifact hashes; if the approved contract hash differs,
+stop output work and use the protocol amendment/review gate. Recover stale
+in-progress work as interrupted, load the latest checkpoint, then continue the
+first ready leaf at its next idempotent boundary. Never rely on chat history as
+the only record, repeat a completed leaf, or create a second queue to bypass an
+unresolved task. Human actions pause and later resume the same task.
+
+Before generating a figure or table, reload the approved protocol and the
+single project contract at `data/nma_figure_table_spec_template.json`. Follow
+[`OUTPUT_CONTRACT_AND_STEPWISE_SEARCH.md`](../../docs/OUTPUT_CONTRACT_AND_STEPWISE_SEARCH.md):
+complete its project-specific fields, freeze its SHA-256 in the protocol, and
+keep every declared item and layout unchanged.
+
+For every browser-facing database skill (search, session checks, paging,
+parsing, details, citation export, or full-text handoff), apply the project
+[`BROWSER_ROUTE_POLICY.md`](../../docs/BROWSER_ROUTE_POLICY.md): use the Codex
+built-in CDP browser first. Chrome DevTools is only a documented fallback for
+a specific unavailable capability, and the reason must be recorded. This
+project policy overrides older route preferences in helper skills.
 
 Use the current Cochrane Handbook chapters mapped in
 [`docs/COCHRANE_AGENT_REQUIREMENTS.md`](../../docs/COCHRANE_AGENT_REQUIREMENTS.md).
@@ -88,6 +136,10 @@ native lines and interface set references; the collapsed generated execution
 query stays in a separate hash-bound artifact. Before release, replace or
 annotate planned generated lines with the exact-as-run history/export record,
 including set numbers, totals, date/timezone, and peer review.
+
+When Embase.com is in the approved database queue, also load
+[`EMBASE_SEARCH_AND_EXPORT.md`](../../docs/EMBASE_SEARCH_AND_EXPORT.md) for
+database-specific history and export checkpoints.
 
 Use a **form-first, journal-shaped package** for every new review:
 

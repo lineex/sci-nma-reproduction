@@ -5,8 +5,10 @@
 Browser searches are run as an ordered queue rather than as concurrent
 automation calls. This keeps one authenticated browser session focused on one
 database, makes verification or login checkpoints unambiguous, and preserves a
-reviewable record for every database. The queue is a scheduler and evidence
-gate; the existing CDP/browser skills still perform the actual search.
+reviewable record for every database. The queue is an ordered task list and
+evidence gate; the existing CDP/browser skills perform each search. It does
+not automatically execute or advance searches; the user confirms each
+database transition.
 
 The invariant is:
 
@@ -17,6 +19,11 @@ parallel_browser_calls = false
 
 A later database starts only after the previous database has an exact-as-run
 history, an export, hashes for both, and a completed queue record.
+After presenting that database's completed checklist and evidence, pause for
+explicit user confirmation before claiming the next database. The queue stores
+order and provenance; the agent does not automatically advance the search.
+For queues created by the current project version, `start` rejects the next
+database until `confirm-next` records that explicit decision.
 
 ## Queue schema
 
@@ -25,8 +32,8 @@ history, an export, hashes for both, and a completed queue record.
 - `execution_policy`: `strict_serial`, one active task, preferred
   `cdp_builtin_browser`, then `chrome_devtools`;
 - `tasks`: one ordered task per database (`ordinal`, `task_id`, database,
-  strategy/execution-artifact paths and hashes, a line plan, browser route,
-  session, status, and evidence);
+  strategy/execution-artifact paths and hashes, an ordered per-line checklist,
+  browser route, session, status, and evidence);
 - `events`: append-only lifecycle records for queue creation, start, pause,
   resume, failure, and completion.
 
@@ -39,6 +46,12 @@ Task states are:
 | `paused` | Verification, login, or recovery needs user action | resolve the checkpoint, then `resume` |
 | `failed` | The attempt ended with a retained error | diagnose, then `resume` |
 | `completed` | Exact-as-run evidence passed validation | start the next ordinal |
+
+Each task's `line_checkpoints` persist one completed result count and history
+locator per strategy line. Only the first unchecked line may be recorded. This
+lets a resumed search continue from its next line instead of repeating earlier
+queries. Completion validates the saved line checkpoints against the submitted
+count/export evidence.
 
 `pause` and `fail` release the active slot, but they do not advance the
 ordinal. A paused or failed task must be explicitly resumed before another
@@ -62,6 +75,13 @@ sci-nma-agent search-queue status `
   --queue PROJECT/search/browser_search_queue.json
 ```
 
+Render it as a resumable to-do checklist:
+
+```powershell
+sci-nma-agent search-queue checklist `
+  --queue PROJECT/search/browser_search_queue.json
+```
+
 Claim exactly one database. The built-in CDP route is the default:
 
 ```powershell
@@ -71,6 +91,24 @@ sci-nma-agent search-queue start `
   --session SEARCH_SESSION_001 `
   --browser-route cdp_builtin_browser
 ```
+
+Execute the next unchecked native strategy line, then persist its count and
+history/query locator before moving to the following line:
+
+```powershell
+sci-nma-agent search-queue record-line `
+  --queue PROJECT/search/browser_search_queue.json `
+  --task-id TASK_ID `
+  --actor search-agent `
+  --session SEARCH_SESSION_001 `
+  --line-number 1 `
+  --result-count 8123 `
+  --locator "history:#1"
+```
+
+Repeat with the next line number. Component lines save counts only. The final
+combination is also checkpointed with its total and locator before exporting
+full records from that line.
 
 Use `chrome_devtools` only when the primary route is unavailable and retain
 the loopback endpoint, dedicated profile, `/json/version` response, and
@@ -174,6 +212,24 @@ sci-nma-agent search-queue complete `
   --evidence PROJECT/verification/search/PubMed_evidence.json
 ```
 
+After completion, show the user the counts, export total, history/export paths,
+hashes, and unresolved issues. Only after the user confirms continuation,
+record that decision:
+
+```powershell
+sci-nma-agent search-queue confirm-next `
+  --queue PROJECT/search/browser_search_queue.json `
+  --actor user `
+  --session USER_CONFIRMATION_SESSION
+```
+
+This command only records permission to proceed; it does not start the next
+database. The confirmation command and subsequent `start` both revalidate the
+completed database's native strategy, execution query, history, export, and
+saved line checkpoints against their hashes. If a source or evidence artifact
+changed, resolve it through a tracked rerun before advancing. Claim the next
+task separately with `search-queue start`.
+
 ## Browser execution rules
 
 1. Start only the queue's next task.
@@ -189,8 +245,8 @@ sci-nma-agent search-queue complete `
    user action.
 5. Do not turn a blocked page, failed connector, or missing export into a
    zero-result search.
-6. Complete and hash the history/export evidence before starting the next
-   database.
+6. Complete and hash the history/export evidence, present the database report
+   to the user, and wait for confirmation before starting the next database.
 
 ## Stage submission
 
@@ -206,6 +262,10 @@ stages.
 Projects created before the queue feature may retain an older search artifact
 set. For a new or rerun browser search, create and submit the queue so that the
 serial execution contract is explicit.
+Queues created before durable per-line checkpoints remain readable for audit,
+but the current executor will not start them. Preserve the original queue and
+reconcile its already-executed line counts before continuing; do not overwrite
+it or assume earlier query lines were completed.
 
 ## Recovery and audit
 

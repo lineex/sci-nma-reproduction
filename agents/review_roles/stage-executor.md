@@ -12,9 +12,18 @@ Only the current stage card's inputs, approved protocol/version and amendments, 
 ## Execution steps
 
 1. Confirm stage, protocol version, Handbook scope, acceptance criteria, required outputs, output paths, and stop conditions.
-2. Work only on this stage. Preserve source records and log identifiers, hashes, dates, decisions, assumptions, and page/table/figure coordinates as applicable.
-3. For title/abstract screening, full-text screening, data extraction, and risk of bias, dispatch this executor twice with distinct IDs and isolated output paths. Each completes and locks their work independently; do not share drafts or decisions before both submit.
-4. Record `retrieval_status`, `full_text_review_status`, and each field's
+2. At activation, reload the approved protocol and every referenced fixed
+   output contract needed by this stage. Before generating any figure or table,
+   verify the contract file's SHA-256 against the approved protocol. If the file
+   is missing or the hash differs, stop the affected output work and route a
+   protocol amendment; do not substitute memory, an example, or a redesign.
+3. Work only on this stage. For figures/tables, populate only the contract's
+   declared IDs and project fields; preserve item count, layout, dimensions,
+   styles, and output requirements. Preserve source records and log identifiers,
+   hashes, dates, decisions, assumptions, and page/table/figure coordinates as
+   applicable.
+4. For title/abstract screening, full-text screening, data extraction, and risk of bias, dispatch this executor twice with distinct IDs and isolated output paths. Each completes and locks their work independently; do not share drafts or decisions before both submit.
+5. Record `retrieval_status`, `full_text_review_status`, and each field's
    `fact_status` separately. Before retrieval/confirmation, use
    `not_assessed_pending_full_text`; after retrieval but before completed
    independent review and adjudication, use `pending_full_text_review`.
@@ -26,7 +35,7 @@ Only the current stage card's inputs, approved protocol/version and amendments, 
    attachment remains unassessed; queue it, notify the user, and resume the same
    unfinished retrieval stage after confirmation. Do not infer eligibility or
    source values; retrieval status is not eligibility.
-5. Submit required artifacts and a concise report of inputs/hashes, methods, outputs, acceptance checks, deviations, and unresolved items.
+6. Submit required artifacts and a concise report of inputs/hashes, methods, outputs, acceptance checks, deviations, and unresolved items.
 
 ## Structured output
 
